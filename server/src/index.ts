@@ -656,6 +656,221 @@ ${customContext ? `\n额外上下文：${customContext}` : ''}
   }
 });
 
+// ==================== 智能跟进仪表盘 API ====================
+
+// 计算单个客户的跟进优先级
+async function calculateCustomerPriority(client: any, customer: any) {
+  let priority = 50; // 基础分
+  let suggestedAction = '微信关怀';
+  let suggestedTiming = '本周内';
+  let reasons: string[] = [];
+
+  // 1. 计算距上次联系天数
+  const lastRecord = customer.follow_up_records?.[customer.follow_up_records?.length - 1];
+  let lastContactDays = 999;
+  if (lastRecord?.created_at) {
+    const lastDate = new Date(lastRecord.created_at);
+    const now = new Date();
+    lastContactDays = Math.floor((now.getTime() - lastDate.getTime()) / (1000 * 60 * 60 * 24));
+  }
+
+  // 2. 根据天数调整优先级
+  if (lastContactDays >= 30) {
+    priority += 30;
+    suggestedTiming = '今天';
+    reasons.push('超过30天未跟进');
+  } else if (lastContactDays >= 14) {
+    priority += 20;
+    suggestedTiming = '今天';
+    reasons.push('超过两周未跟进');
+  } else if (lastContactDays >= 7) {
+    priority += 10;
+    suggestedTiming = '本周内';
+    reasons.push('一周未跟进');
+  } else if (lastContactDays <= 3) {
+    priority -= 10; // 刚跟进过，降低优先级
+  }
+
+  // 3. 根据标签调整优先级
+  const tags = customer.customer_tags || [];
+  const tagNames = tags.map((t: any) => t.tag_name);
+  
+  if (tagNames.some((t: string) => t.includes('VIP') || t.includes('高意向'))) {
+    priority += 15;
+    reasons.push('VIP/高意向客户');
+  }
+  if (tagNames.some((t: string) => t.includes('沉睡'))) {
+    priority += 20;
+    suggestedTiming = '今天';
+    reasons.push('沉睡客户需激活');
+  }
+  if (tagNames.some((t: string) => t.includes('到期') || t.includes('续费'))) {
+    priority += 25;
+    suggestedTiming = '今天';
+    suggestedAction = '活动邀约';
+    reasons.push('即将到期/续费');
+  }
+
+  // 4. 根据客户资料判断
+  const profiles = customer.customer_profiles || [];
+  profiles.forEach((p: any) => {
+    if (p.field_name.includes('套餐') && p.field_value) {
+      // 有购买套餐的优先
+      priority += 5;
+    }
+  });
+
+  // 5. 限制优先级范围
+  priority = Math.max(0, Math.min(100, priority));
+
+  // 6. AI生成建议原因
+  let reason = reasons.join('；') || '建议定期跟进维护关系';
+
+  return {
+    priority,
+    suggestedAction,
+    suggestedTiming,
+    reason,
+    lastContactDays
+  };
+}
+
+// 计算所有客户的跟进优先级
+app.post('/api/v1/follow-up-plans/calculate', async (req, res) => {
+  try {
+    const client = getSupabaseClient();
+    
+    // 获取所有客户及其相关数据
+    const { data: customers, error: customersError } = await client
+      .from('customers')
+      .select(`
+        *,
+        customer_tags (*),
+        customer_profiles (*),
+        follow_up_records (*)
+      `);
+
+    if (customersError) throw customersError;
+
+    const plans = [];
+
+    for (const customer of customers || []) {
+      const priorityData = await calculateCustomerPriority(client, customer);
+
+      // Upsert跟进计划
+      const { error: upsertError } = await client
+        .from('follow_up_plans')
+        .upsert({
+          customer_id: customer.id,
+          priority: priorityData.priority,
+          suggested_action: priorityData.suggestedAction,
+          suggested_timing: priorityData.suggestedTiming,
+          reason: priorityData.reason,
+          last_contact_days: priorityData.lastContactDays,
+          calculated_at: new Date().toISOString(),
+        }, {
+          onConflict: 'customer_id'
+        });
+
+      if (upsertError) {
+        console.error(`Failed to upsert plan for customer ${customer.id}:`, upsertError);
+      } else {
+        plans.push({
+          customerId: customer.id,
+          customerName: customer.name,
+          ...priorityData
+        });
+      }
+    }
+
+    res.json({ 
+      success: true, 
+      message: `已计算 ${plans.length} 个客户的跟进优先级`,
+      calculatedAt: new Date().toISOString()
+    });
+  } catch (error: any) {
+    console.error('Error calculating follow-up plans:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 获取待跟进客户列表（仪表盘）
+app.get('/api/v1/follow-up-plans', async (req, res) => {
+  try {
+    const client = getSupabaseClient();
+    const { timing } = req.query; // today, this_week, all
+
+    let query = client
+      .from('follow_up_plans')
+      .select(`
+        *,
+        customers (
+          id,
+          name,
+          phone,
+          customer_tags (*),
+          customer_profiles (*)
+        )
+      `)
+      .order('priority', { ascending: false });
+
+    // 根据时机过滤
+    if (timing === 'today') {
+      query = query.in('suggested_timing', ['今天', '今日']);
+    } else if (timing === 'this_week') {
+      query = query.in('suggested_timing', ['今天', '今日', '本周内']);
+    }
+
+    const { data, error } = await query;
+
+    if (error) throw error;
+    res.json(data || []);
+  } catch (error: any) {
+    console.error('Error fetching follow-up plans:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 获取仪表盘统计
+app.get('/api/v1/follow-up-plans/stats', async (req, res) => {
+  try {
+    const client = getSupabaseClient();
+
+    // 总客户数
+    const { count: totalCustomers } = await client
+      .from('customers')
+      .select('*', { count: 'exact', head: true });
+
+    // 今日待跟进
+    const { count: todayCount } = await client
+      .from('follow_up_plans')
+      .select('*', { count: 'exact', head: true })
+      .in('suggested_timing', ['今天', '今日']);
+
+    // 本周待跟进
+    const { count: weekCount } = await client
+      .from('follow_up_plans')
+      .select('*', { count: 'exact', head: true })
+      .in('suggested_timing', ['今天', '今日', '本周内']);
+
+    // 高优先级客户数
+    const { count: highPriorityCount } = await client
+      .from('follow_up_plans')
+      .select('*', { count: 'exact', head: true })
+      .gte('priority', 70);
+
+    res.json({
+      totalCustomers: totalCustomers || 0,
+      todayPending: todayCount || 0,
+      weekPending: weekCount || 0,
+      highPriority: highPriorityCount || 0
+    });
+  } catch (error: any) {
+    console.error('Error fetching stats:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.listen(port, () => {
   console.log(`Server listening at http://localhost:${port}/`);
 });

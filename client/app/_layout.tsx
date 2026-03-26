@@ -25,6 +25,7 @@ export default function RootLayout() {
             headerShown: false
           }}>
             <Stack.Screen name="index" options={{ title: "" }} />
+            <Stack.Screen name="dashboard" options={{ title: "跟进仪表盘" }} />
             <Stack.Screen name="add-customer" options={{ title: "添加客户" }} />
             <Stack.Screen name="customer-detail" options={{ title: "客户详情" }} />
             <Stack.Screen name="voice-input" options={{ title: "语音录入" }} />

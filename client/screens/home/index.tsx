@@ -156,9 +156,14 @@ export default function HomeScreen() {
                 客户管理
               </ThemedText>
             </View>
-            <TouchableOpacity style={styles.headerButton} onPress={handleAddCustomer}>
-              <FontAwesome6 name="plus" size={20} color={theme.buttonPrimaryText} />
-            </TouchableOpacity>
+            <View style={styles.headerButtons}>
+              <TouchableOpacity style={styles.headerButtonOutline} onPress={() => router.push('/dashboard')}>
+                <FontAwesome6 name="tasks" size={18} color={theme.primary} />
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.headerButton} onPress={handleAddCustomer}>
+                <FontAwesome6 name="plus" size={20} color={theme.buttonPrimaryText} />
+              </TouchableOpacity>
+            </View>
           </View>
 
           {/* Search Bar */}

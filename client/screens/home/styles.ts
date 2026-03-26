@@ -31,6 +31,20 @@ export const createStyles = (theme: Theme) => {
       shadowRadius: 8,
       elevation: 8,
     },
+    headerButtons: {
+      flexDirection: 'row',
+      gap: Spacing.md,
+    },
+    headerButtonOutline: {
+      width: 48,
+      height: 48,
+      borderRadius: BorderRadius.full,
+      backgroundColor: theme.backgroundDefault,
+      justifyContent: 'center',
+      alignItems: 'center',
+      borderWidth: 1,
+      borderColor: theme.border,
+    },
     searchContainer: {
       flexDirection: 'row',
       alignItems: 'center',
