@@ -7,6 +7,7 @@ import {
   ActivityIndicator,
   Modal,
   Pressable,
+  TextInput,
 } from 'react-native';
 import { FontAwesome5, FontAwesome6 } from '@expo/vector-icons';
 import Toast from 'react-native-toast-message';
@@ -19,12 +20,19 @@ import { createStyles } from './styles';
 
 const EXPO_PUBLIC_BACKEND_BASE_URL = process.env.EXPO_PUBLIC_BACKEND_BASE_URL;
 
+interface CustomerProfile {
+  id: number;
+  field_name: string;
+  field_value: string;
+}
+
 interface Customer {
   id: number;
   name: string;
   phone?: string;
   avatar?: string;
   customer_tags?: Array<{ tag_name: string; category: string }>;
+  customer_profiles?: CustomerProfile[];
   follow_up_records?: Array<{ id: number; created_at: string; content: string; audio_url?: string }>;
   ai_briefs?: Array<{ id: number; summary: string; suggestions: any; follow_up_record_id?: number }>;
   generated_messages?: Array<{ id: number; type: string; content: string; follow_up_record_id?: number }>;
@@ -39,6 +47,13 @@ export default function CustomerDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  
+  // 客户资料编辑状态
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [profileFieldName, setProfileFieldName] = useState('');
+  const [profileFieldValue, setProfileFieldValue] = useState('');
+  const [editingProfile, setEditingProfile] = useState<CustomerProfile | null>(null);
+  const [savingProfile, setSavingProfile] = useState(false);
 
   React.useEffect(() => {
     fetchCustomer();
@@ -59,6 +74,96 @@ export default function CustomerDetailScreen() {
 
   const handleDelete = () => {
     setShowDeleteModal(true);
+  };
+
+  // 添加/编辑资料
+  const handleAddProfile = () => {
+    setEditingProfile(null);
+    setProfileFieldName('');
+    setProfileFieldValue('');
+    setShowProfileModal(true);
+  };
+
+  const handleEditProfile = (profile: CustomerProfile) => {
+    setEditingProfile(profile);
+    setProfileFieldName(profile.field_name);
+    setProfileFieldValue(profile.field_value);
+    setShowProfileModal(true);
+  };
+
+  const handleSaveProfile = async () => {
+    if (!customer || !profileFieldName.trim()) {
+      Toast.show({
+        type: 'error',
+        text1: '请填写字段名称',
+      });
+      return;
+    }
+
+    setSavingProfile(true);
+    try {
+      /**
+       * 服务端文件：server/src/index.ts
+       * 接口：POST /api/v1/customer-profiles
+       * Body 参数：customerId: number, fieldName: string, fieldValue: string
+       */
+      const response = await fetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/customer-profiles`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          customerId: customer.id,
+          fieldName: profileFieldName.trim(),
+          fieldValue: profileFieldValue.trim(),
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('保存失败');
+      }
+
+      Toast.show({
+        type: 'success',
+        text1: editingProfile ? '资料已更新' : '资料已添加',
+      });
+
+      setShowProfileModal(false);
+      fetchCustomer(); // 刷新数据
+    } catch (error: any) {
+      Toast.show({
+        type: 'error',
+        text1: '保存失败',
+        text2: error.message || '请重试',
+      });
+    } finally {
+      setSavingProfile(false);
+    }
+  };
+
+  const handleDeleteProfile = async (profileId: number) => {
+    try {
+      const response = await fetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/customer-profiles/${profileId}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        throw new Error('删除失败');
+      }
+
+      Toast.show({
+        type: 'success',
+        text1: '资料已删除',
+      });
+
+      fetchCustomer(); // 刷新数据
+    } catch (error: any) {
+      Toast.show({
+        type: 'error',
+        text1: '删除失败',
+        text2: error.message || '请重试',
+      });
+    }
   };
 
   const confirmDelete = async () => {
@@ -134,6 +239,7 @@ export default function CustomerDetailScreen() {
   }
 
   const tags = customer.customer_tags || [];
+  const profiles = customer.customer_profiles || [];
   const followUpHistory = customer.follow_up_records || [];
   const aiBriefs = customer.ai_briefs || [];
   const generatedMessages = customer.generated_messages || [];
@@ -209,6 +315,57 @@ export default function CustomerDetailScreen() {
                 {deleting ? '删除中...' : '删除客户'}
               </ThemedText>
             </TouchableOpacity>
+          </View>
+
+          {/* Customer Profiles Section - 客户资料 */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <FontAwesome6 name="user-pen" size={20} color={theme.primary} />
+              <ThemedText variant="title" color={theme.textPrimary}>
+                客户资料
+              </ThemedText>
+              <TouchableOpacity
+                style={styles.addButton}
+                onPress={handleAddProfile}
+              >
+                <FontAwesome6 name="plus" size={16} color={theme.buttonPrimaryText} />
+              </TouchableOpacity>
+            </View>
+            
+            {profiles.length > 0 ? (
+              profiles.map((profile) => (
+                <View key={profile.id} style={styles.profileItem}>
+                  <View style={styles.profileContent}>
+                    <ThemedText variant="smallMedium" color={theme.textMuted}>
+                      {profile.field_name}
+                    </ThemedText>
+                    <ThemedText variant="body" color={theme.textPrimary}>
+                      {profile.field_value || '未填写'}
+                    </ThemedText>
+                  </View>
+                  <View style={styles.profileActions}>
+                    <TouchableOpacity
+                      onPress={() => handleEditProfile(profile)}
+                      style={styles.profileActionButton}
+                    >
+                      <FontAwesome6 name="pen" size={14} color={theme.textMuted} />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => handleDeleteProfile(profile.id)}
+                      style={styles.profileActionButton}
+                    >
+                      <FontAwesome6 name="trash" size={14} color={theme.error} />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ))
+            ) : (
+              <View style={styles.emptyState}>
+                <ThemedText variant="small" color={theme.textMuted}>
+                  暂无客户资料，点击右上角 + 添加
+                </ThemedText>
+              </View>
+            )}
           </View>
 
           {/* AI Brief Section */}
@@ -353,6 +510,81 @@ export default function CustomerDetailScreen() {
                   <ThemedText variant="bodyMedium" color={theme.buttonPrimaryText}>
                     删除
                   </ThemedText>
+                </TouchableOpacity>
+              </View>
+            </Pressable>
+          </Pressable>
+        </Modal>
+
+        {/* Profile Edit Modal - 客户资料编辑 */}
+        <Modal
+          visible={showProfileModal}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setShowProfileModal(false)}
+        >
+          <Pressable style={styles.modalOverlay} onPress={() => setShowProfileModal(false)}>
+            <Pressable style={styles.profileModalContent} onPress={(e) => e.stopPropagation()}>
+              <View style={styles.modalHeader}>
+                <ThemedText variant="h3" color={theme.textPrimary}>
+                  {editingProfile ? '编辑资料' : '添加资料'}
+                </ThemedText>
+                <TouchableOpacity onPress={() => setShowProfileModal(false)}>
+                  <FontAwesome6 name="xmark" size={20} color={theme.textMuted} />
+                </TouchableOpacity>
+              </View>
+              
+              <View style={styles.modalBody}>
+                <View style={styles.inputGroup}>
+                  <ThemedText variant="labelTitle" color={theme.textMuted}>
+                    字段名称
+                  </ThemedText>
+                  <TextInput
+                    style={styles.modalInput}
+                    placeholder="如：年龄、套餐、肤质..."
+                    placeholderTextColor={theme.textMuted}
+                    value={profileFieldName}
+                    onChangeText={setProfileFieldName}
+                  />
+                </View>
+                
+                <View style={styles.inputGroup}>
+                  <ThemedText variant="labelTitle" color={theme.textMuted}>
+                    内容
+                  </ThemedText>
+                  <TextInput
+                    style={[styles.modalInput, styles.modalInputMultiline]}
+                    placeholder="填写内容..."
+                    placeholderTextColor={theme.textMuted}
+                    value={profileFieldValue}
+                    onChangeText={setProfileFieldValue}
+                    multiline
+                    numberOfLines={3}
+                  />
+                </View>
+              </View>
+              
+              <View style={styles.modalFooter}>
+                <TouchableOpacity
+                  style={styles.modalCancelButton}
+                  onPress={() => setShowProfileModal(false)}
+                >
+                  <ThemedText variant="bodyMedium" color={theme.textPrimary}>
+                    取消
+                  </ThemedText>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.modalSubmitButton, savingProfile && styles.modalSubmitButtonDisabled]}
+                  onPress={handleSaveProfile}
+                  disabled={savingProfile}
+                >
+                  {savingProfile ? (
+                    <ActivityIndicator size="small" color={theme.buttonPrimaryText} />
+                  ) : (
+                    <ThemedText variant="bodyMedium" color={theme.buttonPrimaryText}>
+                      保存
+                    </ThemedText>
+                  )}
                 </TouchableOpacity>
               </View>
             </Pressable>

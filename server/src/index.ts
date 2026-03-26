@@ -230,7 +230,8 @@ app.get('/api/v1/customers/:id', async (req, res) => {
         customer_tags (*),
         follow_up_records (*),
         ai_briefs (*),
-        generated_messages (*)
+        generated_messages (*),
+        customer_profiles (*)
       `)
       .eq('id', id)
       .maybeSingle();
@@ -242,6 +243,56 @@ app.get('/api/v1/customers/:id', async (req, res) => {
     res.json(data);
   } catch (error: any) {
     console.error('Error fetching customer:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Update customer profile field (upsert)
+app.post('/api/v1/customer-profiles', async (req, res) => {
+  try {
+    const client = getSupabaseClient();
+    const { customerId, fieldName, fieldValue } = req.body;
+
+    if (!customerId || !fieldName) {
+      return res.status(400).json({ error: 'customerId and fieldName are required' });
+    }
+
+    // Upsert: 如果存在则更新，不存在则插入
+    const { data, error } = await client
+      .from('customer_profiles')
+      .upsert({
+        customer_id: customerId,
+        field_name: fieldName,
+        field_value: fieldValue || '',
+      }, {
+        onConflict: 'customer_id,field_name'
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+    res.json(data);
+  } catch (error: any) {
+    console.error('Error updating customer profile:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Delete customer profile field
+app.delete('/api/v1/customer-profiles/:id', async (req, res) => {
+  try {
+    const client = getSupabaseClient();
+    const { id } = req.params;
+
+    const { error } = await client
+      .from('customer_profiles')
+      .delete()
+      .eq('id', id);
+
+    if (error) throw error;
+    res.json({ success: true, message: '资料已删除' });
+  } catch (error: any) {
+    console.error('Error deleting customer profile:', error);
     res.status(500).json({ error: error.message });
   }
 });

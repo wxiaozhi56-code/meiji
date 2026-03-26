@@ -99,6 +99,46 @@ export const createStyles = (theme: Theme) => {
       gap: Spacing.md,
       marginBottom: Spacing.lg,
     },
+    addButton: {
+      marginLeft: 'auto',
+      width: 32,
+      height: 32,
+      borderRadius: BorderRadius.full,
+      backgroundColor: theme.primary,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    profileItem: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      backgroundColor: theme.backgroundDefault,
+      borderRadius: BorderRadius.lg,
+      padding: Spacing.lg,
+      marginBottom: Spacing.md,
+      borderWidth: 1,
+      borderColor: theme.border,
+    },
+    profileContent: {
+      flex: 1,
+      gap: 4,
+    },
+    profileActions: {
+      flexDirection: 'row',
+      gap: Spacing.sm,
+    },
+    profileActionButton: {
+      padding: Spacing.sm,
+    },
+    emptyState: {
+      backgroundColor: theme.backgroundDefault,
+      borderRadius: BorderRadius.lg,
+      padding: Spacing.xl,
+      alignItems: 'center',
+      borderWidth: 1,
+      borderColor: theme.border,
+      borderStyle: 'dashed' as any,
+    },
     briefCard: {
       backgroundColor: theme.backgroundDefault,
       borderRadius: BorderRadius.lg,
@@ -256,6 +296,55 @@ export const createStyles = (theme: Theme) => {
       borderRadius: BorderRadius.lg,
       backgroundColor: theme.error,
       alignItems: 'center',
+    },
+    profileModalContent: {
+      backgroundColor: theme.backgroundDefault,
+      borderRadius: BorderRadius.xl,
+      width: '90%',
+      maxWidth: 400,
+    },
+    modalHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      padding: Spacing.xl,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.borderLight,
+    },
+    modalBody: {
+      padding: Spacing.xl,
+    },
+    modalFooter: {
+      flexDirection: 'row',
+      gap: Spacing.md,
+      padding: Spacing.xl,
+      borderTopWidth: 1,
+      borderTopColor: theme.borderLight,
+    },
+    inputGroup: {
+      marginBottom: Spacing.lg,
+    },
+    modalInput: {
+      backgroundColor: theme.backgroundTertiary,
+      borderRadius: BorderRadius.md,
+      padding: Spacing.lg,
+      marginTop: Spacing.sm,
+      fontSize: 15,
+      color: theme.textPrimary,
+    },
+    modalInputMultiline: {
+      minHeight: 80,
+      textAlignVertical: 'top',
+    },
+    modalSubmitButton: {
+      flex: 1,
+      paddingVertical: Spacing.lg,
+      borderRadius: BorderRadius.lg,
+      backgroundColor: theme.primary,
+      alignItems: 'center',
+    },
+    modalSubmitButtonDisabled: {
+      backgroundColor: theme.textMuted,
     },
   });
 };
