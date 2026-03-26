@@ -24,6 +24,7 @@ interface FollowUpPlan {
   suggested_timing: string;
   reason: string;
   last_contact_days: number;
+  urgency_level?: 'red' | 'yellow' | 'green';
   customers: {
     id: number;
     name: string;
@@ -37,6 +38,9 @@ interface Stats {
   todayPending: number;
   weekPending: number;
   highPriority: number;
+  urgentCount: number; // 红色 - 超过3天
+  pendingCount: number; // 黄色 - 超过2天
+  normalCount: number; // 绿色 - 正常
 }
 
 export default function DashboardScreen() {
@@ -86,6 +90,24 @@ export default function DashboardScreen() {
 
   const handleCustomerPress = (customerId: number) => {
     router.push('/customer-detail', { id: customerId });
+  };
+
+  const getUrgencyColor = (urgencyLevel?: 'red' | 'yellow' | 'green') => {
+    switch (urgencyLevel) {
+      case 'red': return theme.error;
+      case 'yellow': return '#FF9500';
+      case 'green': return theme.success;
+      default: return theme.textMuted;
+    }
+  };
+
+  const getUrgencyLabel = (urgencyLevel?: 'red' | 'yellow' | 'green') => {
+    switch (urgencyLevel) {
+      case 'red': return '紧急';
+      case 'yellow': return '待跟进';
+      case 'green': return '正常';
+      default: return '一般';
+    }
   };
 
   const getPriorityColor = (priority: number) => {
@@ -153,14 +175,25 @@ export default function DashboardScreen() {
                 <ThemedText variant="small" color={theme.buttonPrimaryText}>
                   今日待跟进
                 </ThemedText>
+                <View style={styles.statBreakdown}>
+                  {stats.urgentCount > 0 && (
+                    <View style={[styles.breakdownDot, { backgroundColor: theme.error }]} />
+                  )}
+                  {stats.pendingCount > 0 && (
+                    <View style={[styles.breakdownDot, { backgroundColor: '#FF9500' }]} />
+                  )}
+                </View>
               </View>
               <View style={styles.statCard}>
                 <ThemedText variant="h2" color={theme.textPrimary}>
-                  {stats.weekPending}
+                  {stats.normalCount}
                 </ThemedText>
                 <ThemedText variant="small" color={theme.textMuted}>
-                  本周待跟进
+                  跟进正常
                 </ThemedText>
+                <View style={styles.statBreakdown}>
+                  <View style={[styles.breakdownDot, { backgroundColor: theme.success }]} />
+                </View>
               </View>
               <View style={styles.statCard}>
                 <ThemedText variant="h2" color={theme.textPrimary}>
@@ -212,20 +245,25 @@ export default function DashboardScreen() {
               plans.map((plan) => (
                 <TouchableOpacity
                   key={plan.id}
-                  style={styles.planCard}
+                  style={[
+                    styles.planCard,
+                    { borderLeftColor: getUrgencyColor(plan.urgency_level), borderLeftWidth: 4 }
+                  ]}
                   onPress={() => handleCustomerPress(plan.customers.id)}
                 >
                   <View style={styles.planHeader}>
                     <View style={styles.planInfo}>
-                      <ThemedText variant="h4" color={theme.textPrimary}>
-                        {plan.customers.name}
-                      </ThemedText>
-                      <View style={styles.planMeta}>
-                        <View style={[styles.priorityBadge, { backgroundColor: getPriorityColor(plan.priority) }]}>
+                      <View style={styles.planNameRow}>
+                        <ThemedText variant="h4" color={theme.textPrimary}>
+                          {plan.customers.name}
+                        </ThemedText>
+                        <View style={[styles.urgencyBadge, { backgroundColor: getUrgencyColor(plan.urgency_level) }]}>
                           <ThemedText variant="tiny" color={theme.buttonPrimaryText}>
-                            {getPriorityLabel(plan.priority)}
+                            {getUrgencyLabel(plan.urgency_level)}
                           </ThemedText>
                         </View>
+                      </View>
+                      <View style={styles.planMeta}>
                         <ThemedText variant="caption" color={theme.textMuted}>
                           {plan.suggested_timing}
                         </ThemedText>

@@ -218,6 +218,39 @@ export default function CustomerDetailScreen() {
     console.log('Copy message:', content);
   };
 
+  // 标记客户已互动
+  const handleMarkInteracted = async (interactionType: string = '微信关怀') => {
+    if (!customer) return;
+    try {
+      /**
+       * 服务端文件：server/src/index.ts
+       * 接口：POST /api/v1/customers/:id/interact
+       * Body 参数：interactionType: string, notes?: string
+       */
+      const response = await fetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/customers/${customer.id}/interact`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ interactionType }),
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        Toast.show({
+          type: 'success',
+          text1: '已标记互动',
+          text2: '跟进计时器已重置',
+        });
+        fetchCustomer();
+      }
+    } catch (error) {
+      console.error('Failed to mark interaction:', error);
+      Toast.show({
+        type: 'error',
+        text1: '操作失败',
+      });
+    }
+  };
+
   if (loading) {
     return (
       <Screen backgroundColor={theme.backgroundRoot} statusBarStyle={isDark ? 'light' : 'dark'}>
@@ -303,6 +336,31 @@ export default function CustomerDetailScreen() {
                 ))}
               </View>
             )}
+
+            {/* Quick Actions - 快捷操作 */}
+            <View style={styles.quickActions}>
+              <TouchableOpacity
+                style={styles.quickActionButton}
+                onPress={() => handleMarkInteracted('微信关怀')}
+              >
+                <FontAwesome6 name="comments" size={16} color={theme.primary} />
+                <ThemedText variant="tiny" color={theme.primary}>微信已联系</ThemedText>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.quickActionButton}
+                onPress={() => handleMarkInteracted('电话联系')}
+              >
+                <FontAwesome6 name="phone" size={16} color={theme.primary} />
+                <ThemedText variant="tiny" color={theme.primary}>电话已联系</ThemedText>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.quickActionButton}
+                onPress={() => handleMarkInteracted('到店服务')}
+              >
+                <FontAwesome6 name="store" size={16} color={theme.primary} />
+                <ThemedText variant="tiny" color={theme.primary}>已到店</ThemedText>
+              </TouchableOpacity>
+            </View>
 
             {/* Delete Button */}
             <TouchableOpacity

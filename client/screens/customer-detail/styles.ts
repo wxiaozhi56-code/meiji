@@ -80,6 +80,22 @@ export const createStyles = (theme: Theme) => {
       flexWrap: 'wrap',
       gap: Spacing.md,
     },
+    quickActions: {
+      flexDirection: 'row',
+      justifyContent: 'space-around',
+      marginTop: Spacing.lg,
+      paddingTop: Spacing.lg,
+      borderTopWidth: 1,
+      borderTopColor: theme.borderLight,
+    },
+    quickActionButton: {
+      alignItems: 'center',
+      gap: Spacing.xs,
+      paddingVertical: Spacing.sm,
+      paddingHorizontal: Spacing.md,
+      borderRadius: BorderRadius.md,
+      backgroundColor: theme.backgroundTertiary,
+    },
     tagCategory: {
       alignItems: 'center',
     },

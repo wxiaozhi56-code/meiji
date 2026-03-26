@@ -526,7 +526,7 @@ app.get('/api/v1/follow-up-records/:id', async (req, res) => {
   }
 });
 
-// Generate messages
+// Generate messages - 基于完整跟进历史生成话术
 app.post('/api/v1/ai/messages', async (req, res) => {
   try {
     const customHeaders = HeaderUtils.extractForwardHeaders(req.headers as Record<string, string>);
@@ -535,14 +535,16 @@ app.post('/api/v1/ai/messages', async (req, res) => {
 
     const { customerId, followUpRecordId, customContext } = req.body;
 
-    // Fetch customer data
+    // Fetch customer data - 获取完整历史数据
     const supabase = getSupabaseClient();
     const { data: customer, error: customerError } = await supabase
       .from('customers')
       .select(`
         *,
         customer_tags (*),
-        ai_briefs (*)
+        follow_up_records (*),
+        ai_briefs (*),
+        customer_profiles (*)
       `)
       .eq('id', customerId)
       .maybeSingle();
@@ -552,58 +554,67 @@ app.post('/api/v1/ai/messages', async (req, res) => {
       return res.status(404).json({ error: 'Customer not found' });
     }
 
-    // 获取关联的跟进记录
-    let followUpRecord = null;
-    if (followUpRecordId) {
-      const { data: record, error: recordError } = await supabase
-        .from('follow_up_records')
-        .select('*')
-        .eq('id', followUpRecordId)
-        .maybeSingle();
-      
-      if (!recordError && record) {
-        followUpRecord = record;
-      }
-    }
+    // 1. 全部历史沟通摘要
+    const allFollowUpRecords = customer.follow_up_records || [];
+    const recentRecords = allFollowUpRecords.slice(-5); // 最近5条记录
+    const followUpSummary = recentRecords.map((r: any) => 
+      `[${r.created_at?.split('T')[0] || ''}] ${r.content?.substring(0, 50) || ''}...`
+    ).join('\n');
 
-    const latestBrief = customer.ai_briefs?.[customer.ai_briefs.length - 1];
+    // 2. 所有标签
     const tags = customer.customer_tags || [];
+    const tagList = tags.map((t: any) => t.tag_name).join('、') || '暂无标签';
 
-    // Generate messages using LLM
-    let promptContext = '';
-    
-    if (followUpRecord) {
-      promptContext = `基于以下跟进记录生成话术：
+    // 3. 客户资料（套餐、消费等）
+    const profiles = customer.customer_profiles || [];
+    const profileInfo = profiles.map((p: any) => `${p.field_name}: ${p.field_value}`).join('、') || '暂无';
 
-跟进记录：${followUpRecord.content}
-记录时间：${followUpRecord.created_at?.split('T')[0]}`;
-    } else {
-      promptContext = `客户信息：
+    // 4. 最近AI简报
+    const latestBrief = customer.ai_briefs?.[customer.ai_briefs.length - 1];
+
+    // 构建完整上下文
+    const prompt = `你是一个专业美容院的客户关系管理助手。请根据客户的完整历史信息，生成3条个性化的跟进话术。
+
+## 客户基本信息
 姓名：${customer.name}
-标签：${tags.map((t: any) => t.tag_name).join('、') || '暂无'}
-客户简报：${latestBrief?.summary || '暂无'}`;
-    }
 
-    const prompt = `你是一个美容院客户关系管理助手。请根据以下信息生成3条跟进话术。
+## 客户标签（用于理解客户特征）
+${tagList}
 
-${promptContext}
-${customContext ? `\n额外上下文：${customContext}` : ''}
+## 客户资料
+${profileInfo}
 
-要求：
-1. 话术要亲切自然，符合美容师与客户的关系，用"姐"称呼客户
-2. 每条话术要有不同的侧重点：
-   - 关怀型：关注客户近况，表达关心
-   - 价值型：提供有价值的信息或建议
-   - 互动型：创造互动机会，增进关系
-3. 话术长度适中（30-50字），便于微信发送
-4. 不要过于推销，要自然亲切
+## 历史沟通摘要（最近5条）
+${followUpSummary || '暂无历史记录'}
+
+## AI客户简报
+${latestBrief?.summary || '暂无'}
+
+## 上次跟进建议执行情况
+${latestBrief?.suggestions?.map((s: any) => `${s.type}: ${s.content}`).join('；') || '暂无'}
+
+${customContext ? `\n## 额外上下文\n${customContext}\n` : ''}
+
+---
+
+请根据以上完整信息，生成3条不同风格的跟进话术：
+
+1. **关怀型**：侧重情感连接，如问候近期家庭大事、身体状况，参考家庭动态类标签
+2. **价值型**：结合客户历史需求，推荐相关项目或护肤知识，参考皮肤状况、抗衰需求类标签
+3. **活动型**：如有近期优惠活动，结合客户偏好进行邀约，参考消费偏好类标签
+
+**要求：**
+- 话术要亲切自然，用"姐"称呼客户
+- 长度适中（30-60字），便于微信发送
+- 结合客户的真实标签和历史记录，不要凭空捏造
+- 避免过于推销，要自然亲切
 
 返回JSON格式：
 {
   "messages": [
     {"type": "关怀型", "content": "话术内容"},
     {"type": "价值型", "content": "话术内容"},
-    {"type": "互动型", "content": "话术内容"}
+    {"type": "活动型", "content": "话术内容"}
   ]
 }
 
@@ -620,7 +631,9 @@ ${customContext ? `\n额外上下文：${customContext}` : ''}
       console.error('Failed to parse messages:', e);
       generatedMessages = {
         messages: [
-          { type: '建议', content: '话术生成中，请稍后再试' }
+          { type: '关怀型', content: `${customer.name}姐，最近天气变化大，记得多注意保暖哦~` },
+          { type: '价值型', content: `${customer.name}姐，我们最近有新项目上线，很适合您的肤质~` },
+          { type: '活动型', content: `${customer.name}姐，本周会员日有专属优惠，有空来坐坐~` }
         ]
       };
     }
@@ -658,12 +671,19 @@ ${customContext ? `\n额外上下文：${customContext}` : ''}
 
 // ==================== 智能跟进仪表盘 API ====================
 
-// 计算单个客户的跟进优先级
+/**
+ * 计算单个客户的跟进优先级（2天跟进规则）
+ * 规则：
+ * - 所有客户默认执行"2天跟进机制"
+ * - 超过2天未跟进 → 自动纳入"今日待跟进"
+ * - 超过3天未跟进 → 红色紧急标记
+ */
 async function calculateCustomerPriority(client: any, customer: any) {
-  let priority = 50; // 基础分
+  let priority = 0; // 基础分改为0，让规则更清晰
   let suggestedAction = '微信关怀';
-  let suggestedTiming = '本周内';
+  let suggestedTiming = '暂无';
   let reasons: string[] = [];
+  let urgencyLevel: 'red' | 'yellow' | 'green' = 'green'; // 紧急程度
 
   // 1. 计算距上次联系天数
   const lastRecord = customer.follow_up_records?.[customer.follow_up_records?.length - 1];
@@ -674,48 +694,69 @@ async function calculateCustomerPriority(client: any, customer: any) {
     lastContactDays = Math.floor((now.getTime() - lastDate.getTime()) / (1000 * 60 * 60 * 24));
   }
 
-  // 2. 根据天数调整优先级
-  if (lastContactDays >= 30) {
-    priority += 30;
+  // 2. 核心规则：2天跟进机制
+  if (lastContactDays >= 999) {
+    // 从未跟进过
+    priority = 90;
     suggestedTiming = '今天';
-    reasons.push('超过30天未跟进');
-  } else if (lastContactDays >= 14) {
-    priority += 20;
+    suggestedAction = '电话联系';
+    urgencyLevel = 'red';
+    reasons.push('新客户从未跟进');
+  } else if (lastContactDays >= 3) {
+    // 超过3天未跟进 → 红色紧急
+    priority = 80 + Math.min(lastContactDays - 3, 15); // 最高95分
     suggestedTiming = '今天';
-    reasons.push('超过两周未跟进');
-  } else if (lastContactDays >= 7) {
-    priority += 10;
+    suggestedAction = lastContactDays >= 7 ? '电话联系' : '微信关怀';
+    urgencyLevel = 'red';
+    reasons.push(`已${lastContactDays}天未跟进，请立即联系`);
+  } else if (lastContactDays >= 2) {
+    // 超过2天未跟进 → 黄色标记
+    priority = 70;
+    suggestedTiming = '今天';
+    urgencyLevel = 'yellow';
+    reasons.push('超过2天未跟进，今日需联系');
+  } else if (lastContactDays === 1) {
+    // 昨天刚跟进
+    priority = 30;
     suggestedTiming = '本周内';
-    reasons.push('一周未跟进');
-  } else if (lastContactDays <= 3) {
-    priority -= 10; // 刚跟进过，降低优先级
+    urgencyLevel = 'green';
+    reasons.push('跟进状态良好');
+  } else {
+    // 今天刚跟进或无记录
+    priority = 20;
+    suggestedTiming = '暂无';
+    urgencyLevel = 'green';
+    reasons.push('今日已跟进');
   }
 
   // 3. 根据标签调整优先级
   const tags = customer.customer_tags || [];
   const tagNames = tags.map((t: any) => t.tag_name);
   
-  if (tagNames.some((t: string) => t.includes('VIP') || t.includes('高意向'))) {
-    priority += 15;
-    reasons.push('VIP/高意向客户');
+  if (tagNames.some((t: string) => t.includes('VIP'))) {
+    priority += 10;
+    reasons.push('VIP客户需重点关注');
   }
   if (tagNames.some((t: string) => t.includes('沉睡'))) {
-    priority += 20;
-    suggestedTiming = '今天';
+    priority += 15;
+    if (urgencyLevel !== 'red') urgencyLevel = 'yellow';
     reasons.push('沉睡客户需激活');
   }
+  if (tagNames.some((t: string) => t.includes('高意向'))) {
+    priority += 8;
+    reasons.push('高意向客户');
+  }
   if (tagNames.some((t: string) => t.includes('到期') || t.includes('续费'))) {
-    priority += 25;
-    suggestedTiming = '今天';
+    priority += 12;
     suggestedAction = '活动邀约';
-    reasons.push('即将到期/续费');
+    if (urgencyLevel !== 'red') urgencyLevel = 'yellow';
+    reasons.push('套餐即将到期');
   }
 
-  // 4. 根据客户资料判断
+  // 4. 根据客户资料调整
   const profiles = customer.customer_profiles || [];
   profiles.forEach((p: any) => {
-    if (p.field_name.includes('套餐') && p.field_value) {
-      // 有购买套餐的优先
+    if (p.field_name.includes('消费') || p.field_name.includes('套餐')) {
       priority += 5;
     }
   });
@@ -723,7 +764,7 @@ async function calculateCustomerPriority(client: any, customer: any) {
   // 5. 限制优先级范围
   priority = Math.max(0, Math.min(100, priority));
 
-  // 6. AI生成建议原因
+  // 6. 生成原因描述
   let reason = reasons.join('；') || '建议定期跟进维护关系';
 
   return {
@@ -731,7 +772,8 @@ async function calculateCustomerPriority(client: any, customer: any) {
     suggestedAction,
     suggestedTiming,
     reason,
-    lastContactDays
+    lastContactDays,
+    urgencyLevel // 新增：紧急程度标识
   };
 }
 
@@ -767,6 +809,7 @@ app.post('/api/v1/follow-up-plans/calculate', async (req, res) => {
           suggested_timing: priorityData.suggestedTiming,
           reason: priorityData.reason,
           last_contact_days: priorityData.lastContactDays,
+          urgency_level: priorityData.urgencyLevel, // 新增紧急程度
           calculated_at: new Date().toISOString(),
         }, {
           onConflict: 'customer_id'
@@ -841,32 +884,103 @@ app.get('/api/v1/follow-up-plans/stats', async (req, res) => {
       .from('customers')
       .select('*', { count: 'exact', head: true });
 
-    // 今日待跟进
+    // 紧急待跟进（红色 - 超过3天）
+    const { count: urgentCount } = await client
+      .from('follow_up_plans')
+      .select('*', { count: 'exact', head: true })
+      .eq('urgency_level', 'red');
+
+    // 今日待跟进（黄色 - 超过2天）
     const { count: todayCount } = await client
       .from('follow_up_plans')
       .select('*', { count: 'exact', head: true })
-      .in('suggested_timing', ['今天', '今日']);
+      .eq('urgency_level', 'yellow');
 
     // 本周待跟进
     const { count: weekCount } = await client
       .from('follow_up_plans')
       .select('*', { count: 'exact', head: true })
-      .in('suggested_timing', ['今天', '今日', '本周内']);
+      .in('urgency_level', ['red', 'yellow']);
 
-    // 高优先级客户数
-    const { count: highPriorityCount } = await client
+    // 正常跟进（绿色）
+    const { count: normalCount } = await client
       .from('follow_up_plans')
       .select('*', { count: 'exact', head: true })
-      .gte('priority', 70);
+      .eq('urgency_level', 'green');
 
     res.json({
       totalCustomers: totalCustomers || 0,
-      todayPending: todayCount || 0,
+      todayPending: (urgentCount || 0) + (todayCount || 0), // 今日待跟进 = 紧急 + 即将逾期
       weekPending: weekCount || 0,
-      highPriority: highPriorityCount || 0
+      highPriority: urgentCount || 0, // 高优先级 = 紧急
+      urgentCount: urgentCount || 0, // 紧急（红色）
+      pendingCount: todayCount || 0, // 待跟进（黄色）
+      normalCount: normalCount || 0, // 正常（绿色）
     });
   } catch (error: any) {
     console.error('Error fetching stats:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 标记客户已互动（重置2天计时器）
+app.post('/api/v1/customers/:id/interact', async (req, res) => {
+  try {
+    const client = getSupabaseClient();
+    const { id } = req.params;
+    const { interactionType = '微信关怀', notes = '' } = req.body;
+
+    // 添加一条跟进记录，重置计时器
+    const { data: record, error: recordError } = await client
+      .from('follow_up_records')
+      .insert({
+        customer_id: parseInt(id),
+        content: notes || `${interactionType} - 客户已互动标记`,
+        interaction_type: interactionType,
+      })
+      .select()
+      .single();
+
+    if (recordError) throw recordError;
+
+    // 重新计算该客户的跟进优先级
+    const { data: customer } = await client
+      .from('customers')
+      .select(`
+        *,
+        customer_tags (*),
+        customer_profiles (*),
+        follow_up_records (*)
+      `)
+      .eq('id', id)
+      .maybeSingle();
+
+    if (customer) {
+      const priorityData = await calculateCustomerPriority(client, customer);
+      
+      await client
+        .from('follow_up_plans')
+        .upsert({
+          customer_id: customer.id,
+          priority: priorityData.priority,
+          suggested_action: priorityData.suggestedAction,
+          suggested_timing: priorityData.suggestedTiming,
+          reason: priorityData.reason,
+          last_contact_days: priorityData.lastContactDays,
+          urgency_level: priorityData.urgencyLevel,
+          calculated_at: new Date().toISOString(),
+        }, {
+          onConflict: 'customer_id'
+        });
+    }
+
+    res.json({ 
+      success: true, 
+      message: '已标记客户互动，跟进计时器已重置',
+      record 
+    });
+  } catch (error: any) {
+    console.error('Error marking customer interaction:', error);
     res.status(500).json({ error: error.message });
   }
 });

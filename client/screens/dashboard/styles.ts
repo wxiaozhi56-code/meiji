@@ -55,6 +55,16 @@ export const createStyles = (theme: Theme) => {
     statCardHighlight: {
       backgroundColor: theme.primary,
     },
+    statBreakdown: {
+      flexDirection: 'row',
+      gap: Spacing.xs,
+      marginTop: Spacing.sm,
+    },
+    breakdownDot: {
+      width: 8,
+      height: 8,
+      borderRadius: 4,
+    },
     filterContainer: {
       flexDirection: 'row',
       gap: Spacing.sm,
@@ -97,15 +107,20 @@ export const createStyles = (theme: Theme) => {
       flex: 1,
       gap: Spacing.xs,
     },
-    planMeta: {
+    planNameRow: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: Spacing.sm,
     },
-    priorityBadge: {
+    urgencyBadge: {
       paddingVertical: 2,
       paddingHorizontal: Spacing.sm,
       borderRadius: BorderRadius.sm,
+    },
+    planMeta: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: Spacing.sm,
     },
     actionBadge: {
       width: 36,
