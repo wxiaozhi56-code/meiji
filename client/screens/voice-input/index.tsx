@@ -6,9 +6,9 @@ import {
   Easing,
 } from 'react-native';
 import { Audio } from 'expo-av';
-import * as FileSystem from 'expo-file-system/legacy';
 import { FontAwesome6 } from '@expo/vector-icons';
 import Toast from 'react-native-toast-message';
+import { createFormDataFile } from '@/utils';
 import { useSafeRouter, useSafeSearchParams } from '@/hooks/useSafeRouter';
 import { useTheme } from '@/hooks/useTheme';
 import { Screen } from '@/components/Screen';
@@ -175,53 +175,23 @@ export default function VoiceInputScreen() {
   const handleRecordingComplete = async (uri: string) => {
     setProcessing(true);
     try {
-      // 1. 读取音频文件
-      const audioBase64 = await (FileSystem as any).readAsStringAsync(uri, {
-        encoding: 'base64',
-      });
+      // 1. 使用 FormData 上传音频文件
+      const formData = new FormData();
+      const audioFile = await createFormDataFile(uri, `voice_${Date.now()}.m4a`, 'audio/mp4');
+      formData.append('file', audioFile as any);
+      formData.append('customerId', String(params.customerId || ''));
 
-      // 2. 上传音频到对象存储
-      const fileName = `voice/${Date.now()}.m4a`;
+      // 2. 上传并处理音频
       const uploadResponse = await fetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/upload/audio`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          fileName,
-          fileContent: audioBase64,
-          contentType: 'audio/mp4',
-        }),
+        body: formData,
       });
 
       if (!uploadResponse.ok) {
         throw new Error('音频上传失败');
       }
 
-      const { audioUrl } = await uploadResponse.json();
-
-      // 3. 调用语音处理API
-      /**
-       * 服务端文件：server/src/index.ts
-       * 接口：POST /api/v1/voice/process
-       * Body 参数：audioUrl: string, customerId: number
-       */
-      const processResponse = await fetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/voice/process`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          audioUrl,
-          customerId: params.customerId,
-        }),
-      });
-
-      if (!processResponse.ok) {
-        throw new Error('语音处理失败');
-      }
-
-      const result = await processResponse.json();
+      const result = await uploadResponse.json();
       console.log('Voice process result:', result);
 
       Toast.show({
