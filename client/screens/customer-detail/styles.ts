@@ -1,0 +1,176 @@
+import { StyleSheet } from 'react-native';
+import { Spacing, BorderRadius, Theme } from '@/constants/theme';
+
+export const createStyles = (theme: Theme) => {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+    },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: Spacing['2xl'],
+      paddingTop: Spacing['2xl'],
+      paddingBottom: Spacing.xl,
+      backgroundColor: theme.backgroundRoot,
+    },
+    backButton: {
+      width: 40,
+      height: 40,
+      borderRadius: BorderRadius.full,
+      backgroundColor: theme.backgroundTertiary,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    recordButton: {
+      width: 40,
+      height: 40,
+      borderRadius: BorderRadius.full,
+      backgroundColor: theme.primary,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    scrollView: {
+      flex: 1,
+    },
+    scrollContent: {
+      paddingHorizontal: Spacing['2xl'],
+      paddingBottom: Spacing['6xl'],
+    },
+    customerCard: {
+      backgroundColor: theme.backgroundDefault,
+      borderRadius: BorderRadius.lg,
+      padding: Spacing.xl,
+      marginBottom: Spacing['2xl'],
+      borderWidth: 1,
+      borderColor: theme.border,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.04,
+      shadowRadius: 8,
+      elevation: 2,
+    },
+    customerHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: Spacing.xl,
+    },
+    avatarContainer: {
+      marginRight: Spacing.xl,
+    },
+    avatar: {
+      width: 64,
+      height: 64,
+      borderRadius: BorderRadius.full,
+    },
+    avatarPlaceholder: {
+      width: 64,
+      height: 64,
+      borderRadius: BorderRadius.full,
+      backgroundColor: theme.backgroundTertiary,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    customerInfo: {
+      flex: 1,
+    },
+    tagsContainer: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: Spacing.md,
+    },
+    tagCategory: {
+      alignItems: 'center',
+    },
+    tag: {
+      backgroundColor: theme.backgroundTertiary,
+      paddingHorizontal: Spacing.md,
+      paddingVertical: Spacing.xs,
+      borderRadius: BorderRadius.sm,
+      marginTop: Spacing.xs,
+    },
+    section: {
+      marginBottom: Spacing['2xl'],
+    },
+    sectionHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: Spacing.md,
+      marginBottom: Spacing.lg,
+    },
+    briefCard: {
+      backgroundColor: theme.backgroundDefault,
+      borderRadius: BorderRadius.lg,
+      padding: Spacing.xl,
+      borderLeftWidth: 4,
+      borderLeftColor: theme.accent,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.04,
+      shadowRadius: 8,
+      elevation: 2,
+    },
+    suggestionCard: {
+      backgroundColor: theme.backgroundDefault,
+      borderRadius: BorderRadius.lg,
+      padding: Spacing.lg,
+      marginBottom: Spacing.md,
+      borderWidth: 1,
+      borderColor: theme.border,
+    },
+    suggestionType: {
+      backgroundColor: theme.primary,
+      paddingHorizontal: Spacing.md,
+      paddingVertical: Spacing.xs,
+      borderRadius: BorderRadius.sm,
+      alignSelf: 'flex-start',
+      marginBottom: Spacing.sm,
+    },
+    generateButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: Spacing.sm,
+      backgroundColor: theme.primary,
+      borderRadius: BorderRadius.lg,
+      paddingVertical: Spacing.lg,
+      marginBottom: Spacing.lg,
+    },
+    messageCard: {
+      backgroundColor: theme.backgroundDefault,
+      borderRadius: BorderRadius.lg,
+      padding: Spacing.lg,
+      marginBottom: Spacing.md,
+      borderWidth: 1,
+      borderColor: theme.border,
+    },
+    messageCardSelected: {
+      borderColor: theme.primary,
+      borderWidth: 2,
+    },
+    messageHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: Spacing.sm,
+    },
+    messageType: {
+      backgroundColor: theme.accent,
+      paddingHorizontal: Spacing.md,
+      paddingVertical: Spacing.xs,
+      borderRadius: BorderRadius.sm,
+    },
+    copyButton: {
+      padding: Spacing.sm,
+    },
+    historyCard: {
+      backgroundColor: theme.backgroundDefault,
+      borderRadius: BorderRadius.lg,
+      padding: Spacing.lg,
+      marginBottom: Spacing.md,
+      borderWidth: 1,
+      borderColor: theme.border,
+    },
+  });
+};

@@ -1,0 +1,142 @@
+import { StyleSheet } from 'react-native';
+import { Spacing, BorderRadius, Theme } from '@/constants/theme';
+
+export const createStyles = (theme: Theme) => {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+    },
+    header: {
+      paddingHorizontal: Spacing['2xl'],
+      paddingTop: Spacing['3xl'],
+      paddingBottom: Spacing.xl,
+      backgroundColor: theme.backgroundRoot,
+    },
+    headerTop: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: Spacing.xl,
+    },
+    headerButton: {
+      width: 48,
+      height: 48,
+      borderRadius: BorderRadius.full,
+      backgroundColor: theme.primary,
+      justifyContent: 'center',
+      alignItems: 'center',
+      shadowColor: theme.primary,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.3,
+      shadowRadius: 8,
+      elevation: 8,
+    },
+    searchContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: theme.backgroundTertiary,
+      borderRadius: BorderRadius.lg,
+      paddingHorizontal: Spacing.lg,
+      height: 48,
+    },
+    searchInput: {
+      flex: 1,
+      marginLeft: Spacing.md,
+      fontSize: 15,
+      color: theme.textPrimary,
+    },
+    scrollView: {
+      flex: 1,
+    },
+    scrollContent: {
+      paddingHorizontal: Spacing['2xl'],
+      paddingBottom: Spacing['6xl'],
+    },
+    statsContainer: {
+      flexDirection: 'row',
+      backgroundColor: theme.backgroundDefault,
+      borderRadius: BorderRadius.lg,
+      paddingVertical: Spacing.xl,
+      marginBottom: Spacing['2xl'],
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.05,
+      shadowRadius: 8,
+      elevation: 2,
+    },
+    statItem: {
+      flex: 1,
+      alignItems: 'center',
+    },
+    statDivider: {
+      width: 1,
+      backgroundColor: theme.borderLight,
+      marginVertical: Spacing.sm,
+    },
+    customerList: {
+      marginTop: Spacing.lg,
+      gap: Spacing.lg,
+    },
+    customerCard: {
+      backgroundColor: theme.backgroundDefault,
+      borderRadius: BorderRadius.lg,
+      padding: Spacing.xl,
+      borderWidth: 1,
+      borderColor: theme.border,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.04,
+      shadowRadius: 8,
+      elevation: 2,
+    },
+    customerHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: Spacing.lg,
+    },
+    avatarContainer: {
+      marginRight: Spacing.lg,
+    },
+    avatar: {
+      width: 56,
+      height: 56,
+      borderRadius: BorderRadius.full,
+    },
+    avatarPlaceholder: {
+      width: 56,
+      height: 56,
+      borderRadius: BorderRadius.full,
+      backgroundColor: theme.backgroundTertiary,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    customerInfo: {
+      flex: 1,
+    },
+    tagsContainer: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: Spacing.sm,
+      marginBottom: Spacing.lg,
+    },
+    tag: {
+      backgroundColor: theme.backgroundTertiary,
+      paddingHorizontal: Spacing.md,
+      paddingVertical: Spacing.xs,
+      borderRadius: BorderRadius.sm,
+    },
+    footer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: Spacing.sm,
+      paddingTop: Spacing.md,
+      borderTopWidth: 1,
+      borderTopColor: theme.borderLight,
+    },
+    emptyContainer: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: Spacing['5xl'],
+    },
+  });
+};
