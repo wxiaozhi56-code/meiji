@@ -205,6 +205,12 @@ export default function CustomerDetailScreen() {
     }
   };
 
+  const handleOpenAnalysis = () => {
+    if (customer) {
+      router.push('/customer-analysis', { customerId: customer.id, customerName: customer.name });
+    }
+  };
+
   const handleGenerateMessages = (followUpRecordId?: number) => {
     if (customer) {
       router.push('/generate-messages', { 
@@ -289,9 +295,14 @@ export default function CustomerDetailScreen() {
           <ThemedText variant="h3" color={theme.textPrimary}>
             客户详情
           </ThemedText>
-          <TouchableOpacity onPress={handleStartRecord} style={styles.recordButton}>
-            <FontAwesome6 name="microphone" size={20} color={theme.buttonPrimaryText} />
-          </TouchableOpacity>
+          <View style={styles.headerButtons}>
+            <TouchableOpacity onPress={handleOpenAnalysis} style={styles.analysisButton}>
+              <FontAwesome6 name="chart-pie" size={18} color={theme.primary} />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={handleStartRecord} style={styles.recordButton}>
+              <FontAwesome6 name="microphone" size={20} color={theme.buttonPrimaryText} />
+            </TouchableOpacity>
+          </View>
         </View>
 
         <ScrollView

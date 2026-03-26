@@ -31,6 +31,18 @@ export const createStyles = (theme: Theme) => {
       justifyContent: 'center',
       alignItems: 'center',
     },
+    headerButtons: {
+      flexDirection: 'row',
+      gap: Spacing.md,
+    },
+    analysisButton: {
+      width: 40,
+      height: 40,
+      borderRadius: BorderRadius.full,
+      backgroundColor: theme.backgroundTertiary,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
     scrollView: {
       flex: 1,
     },

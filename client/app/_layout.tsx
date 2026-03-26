@@ -28,6 +28,7 @@ export default function RootLayout() {
             <Stack.Screen name="dashboard" options={{ title: "跟进仪表盘" }} />
             <Stack.Screen name="add-customer" options={{ title: "添加客户" }} />
             <Stack.Screen name="customer-detail" options={{ title: "客户详情" }} />
+            <Stack.Screen name="customer-analysis" options={{ title: "深度分析" }} />
             <Stack.Screen name="voice-input" options={{ title: "语音录入" }} />
             <Stack.Screen name="generate-messages" options={{ title: "生成话术" }} />
           </Stack>

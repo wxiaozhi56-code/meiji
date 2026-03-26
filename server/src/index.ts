@@ -985,6 +985,273 @@ app.post('/api/v1/customers/:id/interact', async (req, res) => {
   }
 });
 
+// ==================== 客户360°深度分析 API ====================
+
+/**
+ * 生成客户深度分析报告
+ * 整合所有历史数据，通过AI生成多维度分析
+ */
+app.post('/api/v1/analysis/generate', async (req, res) => {
+  try {
+    const customHeaders = HeaderUtils.extractForwardHeaders(req.headers as Record<string, string>);
+    const config = new Config();
+    const llmClient = new LLMClient(config, customHeaders);
+
+    const { customerId } = req.body;
+    const client = getSupabaseClient();
+
+    // 1. 获取客户完整数据
+    const { data: customer, error: customerError } = await client
+      .from('customers')
+      .select(`
+        *,
+        customer_tags (*),
+        customer_profiles (*),
+        follow_up_records (*),
+        ai_briefs (*),
+        generated_messages (*)
+      `)
+      .eq('id', customerId)
+      .maybeSingle();
+
+    if (customerError) throw customerError;
+    if (!customer) {
+      return res.status(404).json({ error: 'Customer not found' });
+    }
+
+    // 2. 整合数据
+    const tags = customer.customer_tags || [];
+    const profiles = customer.customer_profiles || [];
+    const followUpRecords = customer.follow_up_records || [];
+    const aiBriefs = customer.ai_briefs || [];
+
+    // 3. 构建分析Prompt
+    const prompt = `你是一个专业的美容院客户关系管理分析师。请根据以下客户数据，生成一份详细的360°深度分析报告。
+
+## 客户基本信息
+- 姓名：${customer.name}
+- 电话：${customer.phone || '未记录'}
+
+## 标签库（所有历史标签）
+${tags.map((t: any) => `- ${t.tag_name}（${t.category}）`).join('\n') || '暂无标签'}
+
+## 客户资料
+${profiles.map((p: any) => `- ${p.field_name}: ${p.field_value}`).join('\n') || '暂无资料'}
+
+## 跟进历史（最近10条）
+${followUpRecords.slice(-10).map((r: any) => 
+  `- [${r.created_at?.split('T')[0] || ''}] ${r.content?.substring(0, 100) || ''}`
+).join('\n') || '暂无跟进记录'}
+
+## AI简报历史
+${aiBriefs.slice(-3).map((b: any) => 
+  `- ${b.summary}`
+).join('\n') || '暂无AI简报'}
+
+---
+
+请生成一份结构化的JSON分析报告，包含以下维度：
+
+\`\`\`json
+{
+  "customerValue": {
+    "consumptionRating": 4,
+    "consumptionPotential": "high",
+    "lifecycleStage": "growing",
+    "ltvEstimate": 12000,
+    "ltvEstimateReason": "基于消费频次和客单价预测"
+  },
+  "statusAnalysis": {
+    "emotionalState": "焦虑（因女儿升学压力）",
+    "skinCondition": "脸颊干、法令纹明显",
+    "lifeEvents": "女儿刚考上大学",
+    "visitFrequency": "normal",
+    "churnRisk": "medium"
+  },
+  "coreNeeds": {
+    "topNeeds": ["法令纹改善", "抗衰", "补水"],
+    "unmetNeeds": ["失眠导致的皮肤问题"],
+    "interests": ["射频类仪器", "深层补水项目"]
+  },
+  "followUpStrategy": {
+    "bestTiming": "今天（距上次到店已超2周）",
+    "bestChannel": "微信私聊",
+    "suggestedStaff": "小李",
+    "communicationStyle": "关怀型"
+  },
+  "salesRecommendation": {
+    "primaryRecommendation": "补水+射频抗衰套餐",
+    "secondaryRecommendation": "助眠精油护理",
+    "avoidItems": ["酸类焕肤（客户反馈刺激）"],
+    "pitchAngle": "姐，恭喜宝贝考上大学！最近操心又失眠，皮肤容易干...",
+    "discountStrategy": "适合推套餐，不适合直接推高价单品"
+  },
+  "riskWarning": {
+    "churnAlert": "最近到店间隔较长，建议跟进",
+    "complaintAlert": null,
+    "priceSensitivity": "medium"
+  },
+  "fullReportMarkdown": "完整的Markdown格式报告文本"
+}
+\`\`\`
+
+**评分标准说明：**
+- consumptionRating: 1-5星，基于消费总额、客单价、频率综合评定
+- consumptionPotential: high/medium/low
+- lifecycleStage: new/growing/mature/dormant/churned
+- visitFrequency: high/normal/low/dormant
+- churnRisk: high/medium/low
+- priceSensitivity: high/medium/low
+
+**重要：** 
+1. 分析要基于提供的真实数据，不要凭空捏造
+2. fullReportMarkdown需要生成完整的、格式化的Markdown报告
+3. 只返回JSON，不要其他内容`;
+
+    const messages = [{ role: 'user' as const, content: prompt }];
+    const llmResult = await llmClient.invoke(messages, { temperature: 0.7 });
+
+    // 4. 解析AI结果
+    let analysis;
+    try {
+      analysis = JSON.parse(llmResult.content);
+    } catch (e) {
+      console.error('Failed to parse analysis:', e);
+      // 返回默认分析结构
+      analysis = {
+        customerValue: {
+          consumptionRating: 3,
+          consumptionPotential: 'medium',
+          lifecycleStage: 'new',
+          ltvEstimate: 5000,
+          ltvEstimateReason: '新客户，待进一步评估'
+        },
+        statusAnalysis: {
+          emotionalState: '暂无足够数据判断',
+          skinCondition: '暂无数据',
+          lifeEvents: '',
+          visitFrequency: 'normal',
+          churnRisk: 'low'
+        },
+        coreNeeds: {
+          topNeeds: ['补水', '基础护理'],
+          unmetNeeds: [],
+          interests: []
+        },
+        followUpStrategy: {
+          bestTiming: '本周内',
+          bestChannel: '微信关怀',
+          suggestedStaff: '任意美容师',
+          communicationStyle: '关怀型'
+        },
+        salesRecommendation: {
+          primaryRecommendation: '基础补水护理',
+          secondaryRecommendation: '面部清洁',
+          avoidItems: [],
+          pitchAngle: '姐，最近有空来做一次基础护理吗？',
+          discountStrategy: '适合推荐体验套餐'
+        },
+        riskWarning: {
+          churnAlert: null,
+          complaintAlert: null,
+          priceSensitivity: 'medium'
+        },
+        fullReportMarkdown: `# 客户分析报告\n\n客户 ${customer.name} 的数据正在积累中，请持续跟进后生成更精准的分析。`
+      };
+    }
+
+    // 5. 保存到数据库（先删除旧报告）
+    await client
+      .from('customer_analysis_reports')
+      .delete()
+      .eq('customer_id', customerId);
+
+    const { data: savedReport, error: saveError } = await client
+      .from('customer_analysis_reports')
+      .insert({
+        customer_id: customerId,
+        consumption_rating: analysis.customerValue?.consumptionRating || 3,
+        consumption_potential: analysis.customerValue?.consumptionPotential || 'medium',
+        lifecycle_stage: analysis.customerValue?.lifecycleStage || 'new',
+        ltv_estimate: analysis.customerValue?.ltvEstimate || 0,
+        emotional_state: analysis.statusAnalysis?.emotionalState,
+        skin_condition: analysis.statusAnalysis?.skinCondition,
+        life_events: analysis.statusAnalysis?.lifeEvents,
+        visit_frequency: analysis.statusAnalysis?.visitFrequency || 'normal',
+        churn_risk: analysis.statusAnalysis?.churnRisk || 'low',
+        top_needs: JSON.stringify(analysis.coreNeeds?.topNeeds || []),
+        unmet_needs: JSON.stringify(analysis.coreNeeds?.unmetNeeds || []),
+        interests: JSON.stringify(analysis.coreNeeds?.interests || []),
+        best_timing: analysis.followUpStrategy?.bestTiming,
+        best_channel: analysis.followUpStrategy?.bestChannel,
+        suggested_staff: analysis.followUpStrategy?.suggestedStaff,
+        communication_style: analysis.followUpStrategy?.communicationStyle,
+        primary_recommendation: analysis.salesRecommendation?.primaryRecommendation,
+        secondary_recommendation: analysis.salesRecommendation?.secondaryRecommendation,
+        avoid_items: JSON.stringify(analysis.salesRecommendation?.avoidItems || []),
+        pitch_angle: analysis.salesRecommendation?.pitchAngle,
+        discount_strategy: analysis.salesRecommendation?.discountStrategy,
+        churn_alert: analysis.riskWarning?.churnAlert,
+        complaint_alert: analysis.riskWarning?.complaintAlert,
+        price_sensitivity: analysis.riskWarning?.priceSensitivity || 'medium',
+        full_report: analysis.fullReportMarkdown,
+      })
+      .select()
+      .single();
+
+    if (saveError) throw saveError;
+
+    res.json({
+      success: true,
+      report: savedReport,
+      analysis: analysis
+    });
+  } catch (error: any) {
+    console.error('Error generating analysis:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * 获取客户深度分析报告
+ */
+app.get('/api/v1/analysis/:customerId', async (req, res) => {
+  try {
+    const client = getSupabaseClient();
+    const { customerId } = req.params;
+
+    const { data: report, error } = await client
+      .from('customer_analysis_reports')
+      .select('*')
+      .eq('customer_id', customerId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error) throw error;
+
+    if (!report) {
+      return res.json({ 
+        success: false, 
+        message: '暂无分析报告，请先生成' 
+      });
+    }
+
+    // 检查是否过期
+    const expiresAt = new Date(report.expires_at);
+    const isExpired = expiresAt < new Date();
+
+    res.json({
+      success: true,
+      report,
+      isExpired
+    });
+  } catch (error: any) {
+    console.error('Error fetching analysis:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.listen(port, () => {
   console.log(`Server listening at http://localhost:${port}/`);
 });
