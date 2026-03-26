@@ -625,6 +625,12 @@ ${customContext ? `\n额外上下文：${customContext}` : ''}
       };
     }
 
+    // 删除该客户所有旧话术，只保留最新的3条
+    await supabase
+      .from('generated_messages')
+      .delete()
+      .eq('customer_id', customerId);
+
     // Save to database - 设置10分钟后过期
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10分钟后
     const messageInserts = generatedMessages.messages.map((msg: any) => ({
