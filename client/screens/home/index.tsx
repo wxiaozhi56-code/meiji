@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import {
   View,
   ScrollView,
@@ -8,6 +8,7 @@ import {
   RefreshControl,
 } from 'react-native';
 import { FontAwesome6 } from '@expo/vector-icons';
+import { useFocusEffect } from 'expo-router';
 import { useSafeRouter } from '@/hooks/useSafeRouter';
 import { useTheme } from '@/hooks/useTheme';
 import { Screen } from '@/components/Screen';
@@ -15,39 +16,16 @@ import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { createStyles } from './styles';
 
+const EXPO_PUBLIC_BACKEND_BASE_URL = process.env.EXPO_PUBLIC_BACKEND_BASE_URL;
+
 interface Customer {
   id: number;
   name: string;
   phone?: string;
   avatar?: string;
-  tags: string[];
-  lastFollowUp?: string;
+  customer_tags?: Array<{ tag_name: string }>;
+  created_at?: string;
 }
-
-// Mock data for demo
-const MOCK_CUSTOMERS: Customer[] = [
-  {
-    id: 1,
-    name: '张女士',
-    phone: '138****1234',
-    tags: ['#女儿中考', '#失眠', '#皮肤干燥'],
-    lastFollowUp: '2024-01-15',
-  },
-  {
-    id: 2,
-    name: '李姐',
-    phone: '139****5678',
-    tags: ['#新客户', '#抗衰需求'],
-    lastFollowUp: '2024-01-14',
-  },
-  {
-    id: 3,
-    name: '王女士',
-    phone: '137****9012',
-    tags: ['#常客', '#补水项目'],
-    lastFollowUp: '2024-01-13',
-  },
-];
 
 export default function HomeScreen() {
   const { theme, isDark } = useTheme();
@@ -55,22 +33,34 @@ export default function HomeScreen() {
   const router = useSafeRouter();
   const [searchQuery, setSearchQuery] = useState('');
   const [refreshing, setRefreshing] = useState(false);
-  const [customers] = useState<Customer[]>(MOCK_CUSTOMERS);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const filteredCustomers = useMemo(() => {
-    if (!searchQuery) return customers;
-    return customers.filter(
-      (c) =>
-        c.name.includes(searchQuery) ||
-        c.phone?.includes(searchQuery) ||
-        c.tags.some((t) => t.includes(searchQuery))
-    );
-  }, [customers, searchQuery]);
+  const fetchCustomers = useCallback(async () => {
+    try {
+      /**
+       * 服务端文件：server/src/index.ts
+       * 接口：GET /api/v1/customers
+       */
+      const response = await fetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/customers`);
+      const data = await response.json();
+      setCustomers(data || []);
+    } catch (error) {
+      console.error('Failed to fetch customers:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchCustomers();
+    }, [fetchCustomers])
+  );
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    // 从 API 获取真实数据
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    await fetchCustomers();
     setRefreshing(false);
   };
 
@@ -79,59 +69,78 @@ export default function HomeScreen() {
   };
 
   const handleAddCustomer = () => {
-    router.push('/voice-input');
+    router.push('/add-customer');
   };
 
-  const renderCustomerCard = (customer: Customer) => (
-    <TouchableOpacity
-      key={customer.id}
-      style={styles.customerCard}
-      onPress={() => handleCustomerPress(customer.id)}
-      activeOpacity={0.7}
-    >
-      <View style={styles.customerHeader}>
-        <View style={styles.avatarContainer}>
-          {customer.avatar ? (
-            <Image source={{ uri: customer.avatar }} style={styles.avatar} />
-          ) : (
-            <View style={styles.avatarPlaceholder}>
-              <ThemedText variant="h4" color={theme.primary}>
-                {customer.name.charAt(0)}
-              </ThemedText>
-            </View>
-          )}
-        </View>
-        <View style={styles.customerInfo}>
-          <ThemedText variant="title" color={theme.textPrimary}>
-            {customer.name}
-          </ThemedText>
-          <ThemedText variant="small" color={theme.textMuted}>
-            {customer.phone}
-          </ThemedText>
-        </View>
-        <FontAwesome6 name="chevron-right" size={16} color={theme.textMuted} />
-      </View>
+  const filteredCustomers = useMemo(() => {
+    if (!searchQuery) return customers;
+    return customers.filter(
+      (c) =>
+        c.name.includes(searchQuery) ||
+        c.phone?.includes(searchQuery) ||
+        c.customer_tags?.some((t) => t.tag_name.includes(searchQuery))
+    );
+  }, [customers, searchQuery]);
 
-      <View style={styles.tagsContainer}>
-        {customer.tags.map((tag, index) => (
-          <View key={index} style={styles.tag}>
-            <ThemedText variant="tiny" color={theme.primary}>
-              {tag}
+  const renderCustomerCard = (customer: Customer) => {
+    const tags = customer.customer_tags?.map((t) => t.tag_name) || [];
+    const lastFollowUp = customer.created_at?.split('T')[0];
+
+    return (
+      <TouchableOpacity
+        key={customer.id}
+        style={styles.customerCard}
+        onPress={() => handleCustomerPress(customer.id)}
+        activeOpacity={0.7}
+      >
+        <View style={styles.customerHeader}>
+          <View style={styles.avatarContainer}>
+            {customer.avatar ? (
+              <Image source={{ uri: customer.avatar }} style={styles.avatar} />
+            ) : (
+              <View style={styles.avatarPlaceholder}>
+                <ThemedText variant="h4" color={theme.primary}>
+                  {customer.name.charAt(0)}
+                </ThemedText>
+              </View>
+            )}
+          </View>
+          <View style={styles.customerInfo}>
+            <ThemedText variant="title" color={theme.textPrimary}>
+              {customer.name}
+            </ThemedText>
+            {customer.phone && (
+              <ThemedText variant="small" color={theme.textMuted}>
+                {customer.phone}
+              </ThemedText>
+            )}
+          </View>
+          <FontAwesome6 name="chevron-right" size={16} color={theme.textMuted} />
+        </View>
+
+        {tags.length > 0 && (
+          <View style={styles.tagsContainer}>
+            {tags.slice(0, 4).map((tag, index) => (
+              <View key={index} style={styles.tag}>
+                <ThemedText variant="tiny" color={theme.primary}>
+                  {tag}
+                </ThemedText>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {lastFollowUp && (
+          <View style={styles.footer}>
+            <FontAwesome6 name="clock" size={12} color={theme.textMuted} />
+            <ThemedText variant="caption" color={theme.textMuted}>
+              创建时间：{lastFollowUp}
             </ThemedText>
           </View>
-        ))}
-      </View>
-
-      {customer.lastFollowUp && (
-        <View style={styles.footer}>
-          <FontAwesome6 name="clock" size={12} color={theme.textMuted} />
-          <ThemedText variant="caption" color={theme.textMuted}>
-            上次跟进：{customer.lastFollowUp}
-          </ThemedText>
-        </View>
-      )}
-    </TouchableOpacity>
-  );
+        )}
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <Screen backgroundColor={theme.backgroundRoot} statusBarStyle={isDark ? 'light' : 'dark'}>
@@ -185,20 +194,11 @@ export default function HomeScreen() {
             </View>
             <View style={styles.statDivider} />
             <View style={styles.statItem}>
-              <ThemedText variant="h3" color={theme.primary}>
-                3
-              </ThemedText>
-              <ThemedText variant="caption" color={theme.textMuted}>
-                今日跟进
-              </ThemedText>
-            </View>
-            <View style={styles.statDivider} />
-            <View style={styles.statItem}>
               <ThemedText variant="h3" color={theme.accent}>
-                5
+                {filteredCustomers.length}
               </ThemedText>
               <ThemedText variant="caption" color={theme.textMuted}>
-                待跟进
+                筛选结果
               </ThemedText>
             </View>
           </View>
@@ -211,12 +211,17 @@ export default function HomeScreen() {
             {filteredCustomers.map(renderCustomerCard)}
           </View>
 
-          {filteredCustomers.length === 0 && (
+          {filteredCustomers.length === 0 && !loading && (
             <View style={styles.emptyContainer}>
               <FontAwesome6 name="users" size={48} color={theme.textMuted} />
               <ThemedText variant="body" color={theme.textMuted}>
                 暂无客户数据
               </ThemedText>
+              <TouchableOpacity style={styles.addButton} onPress={handleAddCustomer}>
+                <ThemedText variant="smallMedium" color={theme.buttonPrimaryText}>
+                  添加第一个客户
+                </ThemedText>
+              </TouchableOpacity>
             </View>
           )}
         </ScrollView>

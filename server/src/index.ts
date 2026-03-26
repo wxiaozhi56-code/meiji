@@ -37,6 +37,61 @@ app.get('/api/v1/customers', async (req, res) => {
   }
 });
 
+// Create new customer
+app.post('/api/v1/customers', async (req, res) => {
+  try {
+    const client = getSupabaseClient();
+    const { name, phone, notes } = req.body;
+
+    if (!name || !name.trim()) {
+      return res.status(400).json({ error: '客户姓名不能为空' });
+    }
+
+    // Create customer
+    const { data: customer, error: customerError } = await client
+      .from('customers')
+      .insert({ name: name.trim(), phone: phone?.trim() || null })
+      .select()
+      .single();
+
+    if (customerError) throw customerError;
+
+    // If notes provided, extract tags and save
+    if (notes && notes.trim()) {
+      // Simple tag extraction: find #tag patterns
+      const tagMatches = notes.match(/#[\u4e00-\u9fa5a-zA-Z0-9]+/g);
+      if (tagMatches && tagMatches.length > 0) {
+        const tagInserts = tagMatches.map((tag: string) => ({
+          customer_id: customer.id,
+          tag_name: tag,
+          category: '消费偏好', // Default category
+        }));
+
+        await client.from('customer_tags').insert(tagInserts);
+      }
+
+      // Save as follow-up record
+      await client.from('follow_up_records').insert({
+        customer_id: customer.id,
+        content: notes.trim(),
+      });
+    }
+
+    // Fetch complete customer data
+    const { data: fullCustomer, error: fetchError } = await client
+      .from('customers')
+      .select(`*, customer_tags (*)`)
+      .eq('id', customer.id)
+      .single();
+
+    if (fetchError) throw fetchError;
+    res.status(201).json(fullCustomer);
+  } catch (error: any) {
+    console.error('Error creating customer:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Get customer by ID
 app.get('/api/v1/customers/:id', async (req, res) => {
   try {

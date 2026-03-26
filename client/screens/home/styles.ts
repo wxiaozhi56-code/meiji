@@ -137,6 +137,14 @@ export const createStyles = (theme: Theme) => {
       alignItems: 'center',
       justifyContent: 'center',
       paddingVertical: Spacing['5xl'],
+      gap: Spacing.lg,
+    },
+    addButton: {
+      backgroundColor: theme.primary,
+      paddingHorizontal: Spacing.xl,
+      paddingVertical: Spacing.lg,
+      borderRadius: BorderRadius.lg,
+      marginTop: Spacing.md,
     },
   });
 };

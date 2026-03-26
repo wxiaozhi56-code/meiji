@@ -19,14 +19,13 @@ export default function RootLayout() {
         <GestureHandlerRootView style={{ flex: 1 }}>
           <StatusBar style="dark"></StatusBar>
           <Stack screenOptions={{
-            // 设置所有页面的切换动画为从右侧滑入，适用于iOS 和 Android
             animation: 'slide_from_right',
             gestureEnabled: true,
             gestureDirection: 'horizontal',
-            // 隐藏自带的头部
             headerShown: false
           }}>
             <Stack.Screen name="index" options={{ title: "" }} />
+            <Stack.Screen name="add-customer" options={{ title: "添加客户" }} />
             <Stack.Screen name="customer-detail" options={{ title: "客户详情" }} />
             <Stack.Screen name="voice-input" options={{ title: "语音录入" }} />
             <Stack.Screen name="generate-messages" options={{ title: "生成话术" }} />
