@@ -95,7 +95,9 @@ export default function CustomerDetailScreen() {
   };
 
   const handleStartRecord = () => {
-    router.push('/voice-input');
+    if (customer) {
+      router.push('/voice-input', { customerId: customer.id });
+    }
   };
 
   const handleGenerateMessages = () => {

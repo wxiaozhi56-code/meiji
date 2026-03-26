@@ -47,6 +47,12 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         }
       ],
       [
+        "expo-av",
+        {
+          "microphonePermission": "允许美迹AI访问麦克风以录制语音备忘"
+        }
+      ],
+      [
         "expo-image-picker",
         {
           "photosPermission": `允许美迹AI美容助手App访问您的相册，以便您上传或保存图片。`,

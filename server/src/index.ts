@@ -1,7 +1,7 @@
 import express from "express";
 import cors from "cors";
 import { getSupabaseClient } from "./storage/database/supabase-client";
-import { ASRClient, LLMClient, Config, HeaderUtils } from "coze-coding-dev-sdk";
+import { ASRClient, LLMClient, Config, HeaderUtils, S3Storage } from "coze-coding-dev-sdk";
 
 const app = express();
 const port = process.env.PORT || 9091;
@@ -15,6 +15,47 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.get('/api/v1/health', (req, res) => {
   console.log('Health check success');
   res.status(200).json({ status: 'ok' });
+});
+
+// Initialize S3 Storage
+const storage = new S3Storage({
+  endpointUrl: process.env.COZE_BUCKET_ENDPOINT_URL,
+  accessKey: "",
+  secretKey: "",
+  bucketName: process.env.COZE_BUCKET_NAME,
+  region: "cn-beijing",
+});
+
+// Upload audio file
+app.post('/api/v1/upload/audio', async (req, res) => {
+  try {
+    const { fileName, fileContent, contentType } = req.body;
+
+    if (!fileName || !fileContent) {
+      return res.status(400).json({ error: 'fileName and fileContent are required' });
+    }
+
+    // Convert base64 to buffer
+    const buffer = Buffer.from(fileContent, 'base64');
+
+    // Upload to object storage
+    const key = await storage.uploadFile({
+      fileContent: buffer,
+      fileName,
+      contentType: contentType || 'audio/mp4',
+    });
+
+    // Generate signed URL (valid for 1 hour)
+    const audioUrl = await storage.generatePresignedUrl({
+      key,
+      expireTime: 3600,
+    });
+
+    res.json({ audioUrl, key });
+  } catch (error: any) {
+    console.error('Error uploading audio:', error);
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // Get all customers

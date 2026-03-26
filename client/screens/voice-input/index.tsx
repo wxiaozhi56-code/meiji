@@ -2,27 +2,30 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   View,
   TouchableOpacity,
-  Alert,
   Animated,
   Easing,
-  Platform,
 } from 'react-native';
 import { Audio } from 'expo-av';
+import * as FileSystem from 'expo-file-system/legacy';
 import { FontAwesome6 } from '@expo/vector-icons';
-import { useSafeRouter } from '@/hooks/useSafeRouter';
+import Toast from 'react-native-toast-message';
+import { useSafeRouter, useSafeSearchParams } from '@/hooks/useSafeRouter';
 import { useTheme } from '@/hooks/useTheme';
 import { Screen } from '@/components/Screen';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { createStyles } from './styles';
 
+const EXPO_PUBLIC_BACKEND_BASE_URL = process.env.EXPO_PUBLIC_BACKEND_BASE_URL;
+
 export default function VoiceInputScreen() {
   const { theme, isDark } = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const router = useSafeRouter();
+  const params = useSafeSearchParams<{ customerId: number }>();
 
   const [isRecording, setIsRecording] = useState(false);
-  const [hasPermission, setHasPermission] = useState(false);
+  const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [recordingTime, setRecordingTime] = useState(0);
   const [processing, setProcessing] = useState(false);
 
@@ -32,11 +35,25 @@ export default function VoiceInputScreen() {
 
   // 请求录音权限
   useEffect(() => {
-    (async () => {
+    requestPermission();
+  }, []);
+
+  const requestPermission = async () => {
+    try {
       const { status } = await Audio.requestPermissionsAsync();
       setHasPermission(status === 'granted');
-    })();
-  }, []);
+      if (status !== 'granted') {
+        Toast.show({
+          type: 'error',
+          text1: '需要麦克风权限',
+          text2: '请在浏览器或系统设置中允许访问麦克风',
+        });
+      }
+    } catch (error) {
+      console.error('权限请求失败:', error);
+      setHasPermission(false);
+    }
+  };
 
   // 脉冲动画
   useEffect(() => {
@@ -90,13 +107,9 @@ export default function VoiceInputScreen() {
   }, [isRecording]);
 
   const startRecording = async () => {
-    if (!hasPermission) {
-      const { status } = await Audio.requestPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('需要权限', '请授予录音权限');
-        return;
-      }
-      setHasPermission(true);
+    if (hasPermission === false) {
+      await requestPermission();
+      return;
     }
 
     if (recordingRef.current) {
@@ -116,9 +129,19 @@ export default function VoiceInputScreen() {
       await recording.startAsync();
       recordingRef.current = recording;
       setIsRecording(true);
-    } catch (error) {
+      
+      Toast.show({
+        type: 'success',
+        text1: '开始录音',
+        text2: '请开始说话...',
+      });
+    } catch (error: any) {
       console.error('录音失败:', error);
-      Alert.alert('录音失败', '无法开始录音，请重试');
+      Toast.show({
+        type: 'error',
+        text1: '录音失败',
+        text2: error.message || '无法开始录音，请检查麦克风权限',
+      });
     }
   };
 
@@ -132,34 +155,92 @@ export default function VoiceInputScreen() {
       setIsRecording(false);
 
       if (uri) {
+        Toast.show({
+          type: 'success',
+          text1: '录音完成',
+          text2: '正在处理...',
+        });
         await handleRecordingComplete(uri);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('停止录音失败:', error);
-      Alert.alert('录音失败', '无法停止录音，请重试');
+      Toast.show({
+        type: 'error',
+        text1: '停止失败',
+        text2: error.message || '请重试',
+      });
     }
   };
 
   const handleRecordingComplete = async (uri: string) => {
     setProcessing(true);
     try {
-      // 上传音频文件到服务器进行语音识别和标签提取
-      // 模拟处理过程
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      // 1. 读取音频文件
+      const audioBase64 = await (FileSystem as any).readAsStringAsync(uri, {
+        encoding: 'base64',
+      });
 
-      Alert.alert(
-        '录音完成',
-        '语音已成功转文字并提取标签',
-        [
-          {
-            text: '查看结果',
-            onPress: () => router.back(),
-          },
-        ]
-      );
-    } catch (error) {
+      // 2. 上传音频到对象存储
+      const fileName = `voice/${Date.now()}.m4a`;
+      const uploadResponse = await fetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/upload/audio`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          fileName,
+          fileContent: audioBase64,
+          contentType: 'audio/mp4',
+        }),
+      });
+
+      if (!uploadResponse.ok) {
+        throw new Error('音频上传失败');
+      }
+
+      const { audioUrl } = await uploadResponse.json();
+
+      // 3. 调用语音处理API
+      /**
+       * 服务端文件：server/src/index.ts
+       * 接口：POST /api/v1/voice/process
+       * Body 参数：audioUrl: string, customerId: number
+       */
+      const processResponse = await fetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/voice/process`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          audioUrl,
+          customerId: params.customerId,
+        }),
+      });
+
+      if (!processResponse.ok) {
+        throw new Error('语音处理失败');
+      }
+
+      const result = await processResponse.json();
+      console.log('Voice process result:', result);
+
+      Toast.show({
+        type: 'success',
+        text1: '处理完成',
+        text2: '语音已转文字并提取标签',
+      });
+
+      // 返回上一页并刷新数据
+      setTimeout(() => {
+        router.back();
+      }, 1000);
+    } catch (error: any) {
       console.error('处理失败:', error);
-      Alert.alert('处理失败', '无法处理录音，请重试');
+      Toast.show({
+        type: 'error',
+        text1: '处理失败',
+        text2: error.message || '请重试',
+      });
     } finally {
       setProcessing(false);
     }
@@ -191,9 +272,11 @@ export default function VoiceInputScreen() {
         <View style={styles.content}>
           <View style={styles.instructionContainer}>
             <ThemedText variant="body" color={theme.textSecondary}>
-              {isRecording
-                ? '正在录音...'
-                : '点击麦克风按钮开始录音'}
+              {hasPermission === false
+                ? '请授予麦克风权限'
+                : isRecording
+                  ? '正在录音，点击停止...'
+                  : '点击麦克风按钮开始录音'}
             </ThemedText>
             <ThemedText variant="small" color={theme.textMuted}>
               最长录制1分钟，结束后自动处理
