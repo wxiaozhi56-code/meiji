@@ -240,6 +240,15 @@ app.get('/api/v1/customers/:id', async (req, res) => {
     if (!data) {
       return res.status(404).json({ error: 'Customer not found' });
     }
+
+    // 过滤掉过期的智能话术（expires_at < now）
+    if (data.generated_messages && data.generated_messages.length > 0) {
+      const now = new Date();
+      data.generated_messages = data.generated_messages.filter(
+        (msg: any) => !msg.expires_at || new Date(msg.expires_at) > now
+      );
+    }
+
     res.json(data);
   } catch (error: any) {
     console.error('Error fetching customer:', error);
@@ -616,13 +625,15 @@ ${customContext ? `\n额外上下文：${customContext}` : ''}
       };
     }
 
-    // Save to database
+    // Save to database - 设置10分钟后过期
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10分钟后
     const messageInserts = generatedMessages.messages.map((msg: any) => ({
       customer_id: customerId,
       follow_up_record_id: followUpRecordId || null,
       brief_id: latestBrief?.id || null,
       content: msg.content,
       type: msg.type,
+      expires_at: expiresAt.toISOString(),
     }));
 
     const { data: savedMessages, error: messagesError } = await supabase
