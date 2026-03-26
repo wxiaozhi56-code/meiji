@@ -7,6 +7,8 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { FontAwesome5, FontAwesome6 } from '@expo/vector-icons';
+import * as Clipboard from 'expo-clipboard';
+import Toast from 'react-native-toast-message';
 import { useSafeRouter, useSafeSearchParams } from '@/hooks/useSafeRouter';
 import { useTheme } from '@/hooks/useTheme';
 import { Screen } from '@/components/Screen';
@@ -14,71 +16,123 @@ import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { createStyles } from './styles';
 
+const EXPO_PUBLIC_BACKEND_BASE_URL = process.env.EXPO_PUBLIC_BACKEND_BASE_URL;
+
 interface GeneratedMessage {
   id: number;
   type: string;
   content: string;
 }
 
+interface FollowUpRecord {
+  id: number;
+  content: string;
+  created_at: string;
+}
+
 export default function GenerateMessagesScreen() {
   const { theme, isDark } = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const router = useSafeRouter();
-  const params = useSafeSearchParams<{ customerId: number }>();
+  const params = useSafeSearchParams<{ customerId: number; followUpRecordId: number }>();
 
   const [generating, setGenerating] = useState(false);
   const [customContext, setCustomContext] = useState('');
-  const [messages, setMessages] = useState<GeneratedMessage[]>([
-    {
-      id: 1,
-      type: '关怀型',
-      content:
-        '姐，最近天气热，您又为闺女升学操心，皮肤容易敏感。给您发个睡前放松小技巧，您空了看看~',
-    },
-    {
-      id: 2,
-      type: '价值型',
-      content:
-        '姐，上次您提的法令纹，我请教了老师，有个简单的手部按摩操对改善"熬夜纹"挺有效，我发您小视频呀？',
-    },
-    {
-      id: 3,
-      type: '互动型',
-      content:
-        '姐，最近店里来了新的补水项目，特别适合压力大、睡眠不好的姐妹。您有空来体验一下？',
-    },
-  ]);
+  const [messages, setMessages] = useState<GeneratedMessage[]>([]);
+  const [followUpRecord, setFollowUpRecord] = useState<FollowUpRecord | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  // 获取跟进记录详情
+  React.useEffect(() => {
+    fetchFollowUpRecord();
+  }, [params.followUpRecordId]);
+
+  const fetchFollowUpRecord = async () => {
+    if (!params.followUpRecordId) {
+      setLoading(false);
+      return;
+    }
+
+    try {
+      // 先从客户详情获取跟进记录
+      const response = await fetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/follow-up-records/${params.followUpRecordId}`);
+      if (response.ok) {
+        const data = await response.json();
+        setFollowUpRecord(data);
+      }
+    } catch (error) {
+      console.error('Failed to fetch follow-up record:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleGenerate = async () => {
+    if (!params.customerId) {
+      Toast.show({
+        type: 'error',
+        text1: '缺少客户信息',
+      });
+      return;
+    }
+
     setGenerating(true);
     try {
-      // 调用 API 使用 LLM 生成话术
-      // 演示时模拟延迟
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-      // Add a new message
-      const newMessage: GeneratedMessage = {
-        id: Date.now(),
-        type: '智能生成',
-        content: customContext
-          ? `根据您的需求：${customContext}，建议这样跟进...`
-          : 'AI正在根据客户画像生成个性化话术...',
-      };
-      setMessages([...messages, newMessage]);
-    } catch (error) {
+      /**
+       * 服务端文件：server/src/index.ts
+       * 接口：POST /api/v1/ai/messages
+       * Body 参数：customerId: number, followUpRecordId?: number, customContext?: string
+       */
+      const response = await fetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/ai/messages`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          customerId: params.customerId,
+          followUpRecordId: params.followUpRecordId || null,
+          customContext: customContext || null,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('生成失败');
+      }
+
+      const data = await response.json();
+      setMessages(data);
+
+      Toast.show({
+        type: 'success',
+        text1: '话术生成成功',
+        text2: `已生成 ${data.length} 条话术`,
+      });
+    } catch (error: any) {
       console.error('生成失败:', error);
+      Toast.show({
+        type: 'error',
+        text1: '生成失败',
+        text2: error.message || '请重试',
+      });
     } finally {
       setGenerating(false);
     }
   };
 
-  const handleCopyMessage = (content: string) => {
-    // 复制到剪贴板
-    console.log('Copy:', content);
+  const handleCopyMessage = async (content: string) => {
+    await Clipboard.setStringAsync(content);
+    Toast.show({
+      type: 'success',
+      text1: '已复制',
+      text2: '话术已复制到剪贴板',
+    });
   };
 
   const handleUseMessage = (message: GeneratedMessage) => {
-    // 导航到发送消息或复制到剪贴板
-    router.back();
+    handleCopyMessage(message.content);
+    setTimeout(() => {
+      router.back();
+    }, 500);
   };
 
   return (
@@ -100,6 +154,21 @@ export default function GenerateMessagesScreen() {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
+          {/* 显示关联的跟进记录 */}
+          {followUpRecord && (
+            <View style={styles.recordCard}>
+              <View style={styles.recordHeader}>
+                <FontAwesome6 name="quote-left" size={14} color={theme.accent} />
+                <ThemedText variant="caption" color={theme.textMuted}>
+                  基于跟进记录生成
+                </ThemedText>
+              </View>
+              <ThemedText variant="body" color={theme.textPrimary}>
+                {followUpRecord.content}
+              </ThemedText>
+            </View>
+          )}
+
           {/* Context Input */}
           <View style={styles.section}>
             <ThemedText variant="labelTitle" color={theme.textMuted}>
@@ -135,47 +204,49 @@ export default function GenerateMessagesScreen() {
           </TouchableOpacity>
 
           {/* Generated Messages */}
-          <View style={styles.section}>
-            <ThemedText variant="labelTitle" color={theme.textMuted}>
-              话术列表
-            </ThemedText>
-            {messages.map((message) => (
-              <View key={message.id} style={styles.messageCard}>
-                <View style={styles.messageHeader}>
-                  <View style={styles.messageType}>
-                    <ThemedText variant="tiny" color={theme.buttonPrimaryText}>
-                      {message.type}
-                    </ThemedText>
+          {messages.length > 0 && (
+            <View style={styles.section}>
+              <ThemedText variant="labelTitle" color={theme.textMuted}>
+                话术列表
+              </ThemedText>
+              {messages.map((message) => (
+                <View key={message.id} style={styles.messageCard}>
+                  <View style={styles.messageHeader}>
+                    <View style={styles.messageType}>
+                      <ThemedText variant="tiny" color={theme.buttonPrimaryText}>
+                        {message.type}
+                      </ThemedText>
+                    </View>
+                    <TouchableOpacity
+                      onPress={() => handleCopyMessage(message.content)}
+                      style={styles.iconButton}
+                    >
+                      <FontAwesome6 name="copy" size={16} color={theme.textMuted} />
+                    </TouchableOpacity>
                   </View>
-                  <TouchableOpacity
-                    onPress={() => handleCopyMessage(message.content)}
-                    style={styles.iconButton}
-                  >
-                    <FontAwesome6 name="copy" size={16} color={theme.textMuted} />
-                  </TouchableOpacity>
+                  <ThemedText variant="body" color={theme.textPrimary}>
+                    {message.content}
+                  </ThemedText>
+                  <View style={styles.messageActions}>
+                    <TouchableOpacity
+                      style={styles.useButton}
+                      onPress={() => handleUseMessage(message)}
+                    >
+                      <ThemedText variant="smallMedium" color={theme.buttonPrimaryText}>
+                        复制并返回
+                      </ThemedText>
+                    </TouchableOpacity>
+                  </View>
                 </View>
-                <ThemedText variant="body" color={theme.textPrimary}>
-                  {message.content}
-                </ThemedText>
-                <View style={styles.messageActions}>
-                  <TouchableOpacity
-                    style={styles.useButton}
-                    onPress={() => handleUseMessage(message)}
-                  >
-                    <ThemedText variant="smallMedium" color={theme.buttonPrimaryText}>
-                      使用此话术
-                    </ThemedText>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            ))}
-          </View>
+              ))}
+            </View>
+          )}
 
           {/* Tips */}
           <View style={styles.tipsContainer}>
             <FontAwesome5 name="info-circle" size={16} color={theme.textMuted} />
             <ThemedText variant="caption" color={theme.textMuted}>
-              AI会根据客户标签、历史记录和您提供的上下文自动生成个性化话术
+              AI会根据客户标签、跟进记录和您提供的上下文自动生成个性化话术
             </ThemedText>
           </View>
         </ScrollView>

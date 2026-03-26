@@ -25,9 +25,9 @@ interface Customer {
   phone?: string;
   avatar?: string;
   customer_tags?: Array<{ tag_name: string; category: string }>;
-  follow_up_records?: Array<{ id: number; created_at: string; content: string }>;
-  ai_briefs?: Array<{ summary: string; suggestions: any }>;
-  generated_messages?: Array<{ id: number; type: string; content: string }>;
+  follow_up_records?: Array<{ id: number; created_at: string; content: string; audio_url?: string }>;
+  ai_briefs?: Array<{ id: number; summary: string; suggestions: any; follow_up_record_id?: number }>;
+  generated_messages?: Array<{ id: number; type: string; content: string; follow_up_record_id?: number }>;
 }
 
 export default function CustomerDetailScreen() {
@@ -100,9 +100,12 @@ export default function CustomerDetailScreen() {
     }
   };
 
-  const handleGenerateMessages = () => {
+  const handleGenerateMessages = (followUpRecordId?: number) => {
     if (customer) {
-      router.push('/generate-messages', { customerId: customer.id });
+      router.push('/generate-messages', { 
+        customerId: customer.id,
+        followUpRecordId: followUpRecordId || ''
+      });
     }
   };
 
@@ -225,45 +228,6 @@ export default function CustomerDetailScreen() {
             </View>
           )}
 
-          {/* Generated Messages Section */}
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <FontAwesome6 name="comment-dots" size={20} color={theme.accent} />
-              <ThemedText variant="title" color={theme.textPrimary}>
-                智能话术
-              </ThemedText>
-            </View>
-            <TouchableOpacity
-              style={styles.generateButton}
-              onPress={handleGenerateMessages}
-            >
-              <FontAwesome6 name="wand-magic-sparkles" size={16} color={theme.buttonPrimaryText} />
-              <ThemedText variant="smallMedium" color={theme.buttonPrimaryText}>
-                生成新话术
-              </ThemedText>
-            </TouchableOpacity>
-            {generatedMessages.slice(-3).reverse().map((message) => (
-              <View key={message.id} style={styles.messageCard}>
-                <View style={styles.messageHeader}>
-                  <View style={styles.messageType}>
-                    <ThemedText variant="tiny" color={theme.buttonPrimaryText}>
-                      {message.type}
-                    </ThemedText>
-                  </View>
-                  <TouchableOpacity
-                    onPress={() => handleCopyMessage(message.content)}
-                    style={styles.copyButton}
-                  >
-                    <FontAwesome6 name="copy" size={14} color={theme.textMuted} />
-                  </TouchableOpacity>
-                </View>
-                <ThemedText variant="small" color={theme.textPrimary}>
-                  {message.content}
-                </ThemedText>
-              </View>
-            ))}
-          </View>
-
           {/* Follow-up History Section */}
           {followUpHistory.length > 0 && (
             <View style={styles.section}>
@@ -273,13 +237,81 @@ export default function CustomerDetailScreen() {
                   跟进记录
                 </ThemedText>
               </View>
-              {followUpHistory.slice(-5).reverse().map((record) => (
-                <View key={record.id} style={styles.historyCard}>
-                  <ThemedText variant="caption" color={theme.textMuted}>
-                    {record.created_at?.split('T')[0]}
-                  </ThemedText>
-                  <ThemedText variant="small" color={theme.textSecondary}>
-                    {record.content}
+              {followUpHistory.slice(-5).reverse().map((record) => {
+                // 找出关联这条跟进记录的话术
+                const relatedMessages = generatedMessages.filter(
+                  msg => msg.follow_up_record_id === record.id
+                );
+                
+                return (
+                  <View key={record.id} style={styles.historyCard}>
+                    <View style={styles.historyHeader}>
+                      <ThemedText variant="caption" color={theme.textMuted}>
+                        {record.created_at?.split('T')[0]}
+                      </ThemedText>
+                      <TouchableOpacity
+                        style={styles.generateButtonSmall}
+                        onPress={() => handleGenerateMessages(record.id)}
+                      >
+                        <FontAwesome6 name="wand-magic-sparkles" size={12} color={theme.buttonPrimaryText} />
+                        <ThemedText variant="tiny" color={theme.buttonPrimaryText}>
+                          生成话术
+                        </ThemedText>
+                      </TouchableOpacity>
+                    </View>
+                    <ThemedText variant="small" color={theme.textSecondary}>
+                      {record.content}
+                    </ThemedText>
+                    
+                    {/* 显示关联的话术 */}
+                    {relatedMessages.length > 0 && (
+                      <View style={styles.relatedMessages}>
+                        {relatedMessages.map((msg) => (
+                          <View key={msg.id} style={styles.relatedMessageItem}>
+                            <View style={styles.messageTypeSmall}>
+                              <ThemedText variant="tiny" color={theme.buttonPrimaryText}>
+                                {msg.type}
+                              </ThemedText>
+                            </View>
+                            <ThemedText variant="caption" color={theme.textPrimary}>
+                              {msg.content}
+                            </ThemedText>
+                          </View>
+                        ))}
+                      </View>
+                    )}
+                  </View>
+                );
+              })}
+            </View>
+          )}
+
+          {/* Generated Messages Section - 保留未关联的话术 */}
+          {generatedMessages.filter(msg => !msg.follow_up_record_id).length > 0 && (
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <FontAwesome6 name="comment-dots" size={20} color={theme.accent} />
+                <ThemedText variant="title" color={theme.textPrimary}>
+                  其他智能话术
+                </ThemedText>
+              </View>
+              {generatedMessages.filter(msg => !msg.follow_up_record_id).slice(-3).reverse().map((message) => (
+                <View key={message.id} style={styles.messageCard}>
+                  <View style={styles.messageHeader}>
+                    <View style={styles.messageType}>
+                      <ThemedText variant="tiny" color={theme.buttonPrimaryText}>
+                        {message.type}
+                      </ThemedText>
+                    </View>
+                    <TouchableOpacity
+                      onPress={() => handleCopyMessage(message.content)}
+                      style={styles.copyButton}
+                    >
+                      <FontAwesome6 name="copy" size={14} color={theme.textMuted} />
+                    </TouchableOpacity>
+                  </View>
+                  <ThemedText variant="small" color={theme.textPrimary}>
+                    {message.content}
                   </ThemedText>
                 </View>
               ))}

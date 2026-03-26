@@ -443,6 +443,29 @@ app.post('/api/v1/ai/brief', async (req, res) => {
   }
 });
 
+// Get follow-up record by ID
+app.get('/api/v1/follow-up-records/:id', async (req, res) => {
+  try {
+    const client = getSupabaseClient();
+    const { id } = req.params;
+
+    const { data, error } = await client
+      .from('follow_up_records')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (error) throw error;
+    if (!data) {
+      return res.status(404).json({ error: 'Follow-up record not found' });
+    }
+    res.json(data);
+  } catch (error: any) {
+    console.error('Error fetching follow-up record:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Generate messages
 app.post('/api/v1/ai/messages', async (req, res) => {
   try {
@@ -450,7 +473,7 @@ app.post('/api/v1/ai/messages', async (req, res) => {
     const config = new Config();
     const llmClient = new LLMClient(config, customHeaders);
 
-    const { customerId, briefId, customContext } = req.body;
+    const { customerId, followUpRecordId, customContext } = req.body;
 
     // Fetch customer data
     const supabase = getSupabaseClient();
@@ -458,6 +481,7 @@ app.post('/api/v1/ai/messages', async (req, res) => {
       .from('customers')
       .select(`
         *,
+        customer_tags (*),
         ai_briefs (*)
       `)
       .eq('id', customerId)
@@ -468,25 +492,58 @@ app.post('/api/v1/ai/messages', async (req, res) => {
       return res.status(404).json({ error: 'Customer not found' });
     }
 
+    // 获取关联的跟进记录
+    let followUpRecord = null;
+    if (followUpRecordId) {
+      const { data: record, error: recordError } = await supabase
+        .from('follow_up_records')
+        .select('*')
+        .eq('id', followUpRecordId)
+        .maybeSingle();
+      
+      if (!recordError && record) {
+        followUpRecord = record;
+      }
+    }
+
     const latestBrief = customer.ai_briefs?.[customer.ai_briefs.length - 1];
+    const tags = customer.customer_tags || [];
 
     // Generate messages using LLM
-    const prompt = `你是一个美容院客户关系管理助手。请根据以下信息生成2-3条跟进话术。
+    let promptContext = '';
+    
+    if (followUpRecord) {
+      promptContext = `基于以下跟进记录生成话术：
 
-客户姓名：${customer.name}
-客户简报：${latestBrief?.summary || '暂无'}
-${customContext ? `额外上下文：${customContext}` : ''}
+跟进记录：${followUpRecord.content}
+记录时间：${followUpRecord.created_at?.split('T')[0]}`;
+    } else {
+      promptContext = `客户信息：
+姓名：${customer.name}
+标签：${tags.map((t: any) => t.tag_name).join('、') || '暂无'}
+客户简报：${latestBrief?.summary || '暂无'}`;
+    }
+
+    const prompt = `你是一个美容院客户关系管理助手。请根据以下信息生成3条跟进话术。
+
+${promptContext}
+${customContext ? `\n额外上下文：${customContext}` : ''}
 
 要求：
-1. 话术要亲切自然，符合美容师与客户的关系
-2. 每条话术要有不同的侧重点（关怀型、价值型、互动型等）
-3. 长度适中，便于发送
+1. 话术要亲切自然，符合美容师与客户的关系，用"姐"称呼客户
+2. 每条话术要有不同的侧重点：
+   - 关怀型：关注客户近况，表达关心
+   - 价值型：提供有价值的信息或建议
+   - 互动型：创造互动机会，增进关系
+3. 话术长度适中（30-50字），便于微信发送
+4. 不要过于推销，要自然亲切
 
 返回JSON格式：
 {
   "messages": [
     {"type": "关怀型", "content": "话术内容"},
-    {"type": "价值型", "content": "话术内容"}
+    {"type": "价值型", "content": "话术内容"},
+    {"type": "互动型", "content": "话术内容"}
   ]
 }
 
@@ -511,7 +568,8 @@ ${customContext ? `额外上下文：${customContext}` : ''}
     // Save to database
     const messageInserts = generatedMessages.messages.map((msg: any) => ({
       customer_id: customerId,
-      brief_id: briefId || latestBrief?.id,
+      follow_up_record_id: followUpRecordId || null,
+      brief_id: latestBrief?.id || null,
       content: msg.content,
       type: msg.type,
     }));
