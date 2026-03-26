@@ -121,6 +121,26 @@ app.get('/api/v1/customers/:id', async (req, res) => {
   }
 });
 
+// Delete customer by ID
+app.delete('/api/v1/customers/:id', async (req, res) => {
+  try {
+    const client = getSupabaseClient();
+    const { id } = req.params;
+
+    // Delete customer (cascade will delete related data)
+    const { error } = await client
+      .from('customers')
+      .delete()
+      .eq('id', id);
+
+    if (error) throw error;
+    res.json({ success: true, message: '客户已删除' });
+  } catch (error: any) {
+    console.error('Error deleting customer:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Process voice recording (ASR + tag extraction)
 app.post('/api/v1/voice/process', async (req, res) => {
   try {

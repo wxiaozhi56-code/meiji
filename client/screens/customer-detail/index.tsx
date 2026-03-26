@@ -4,6 +4,8 @@ import {
   ScrollView,
   TouchableOpacity,
   Image,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { FontAwesome5, FontAwesome6 } from '@expo/vector-icons';
 import { useSafeRouter, useSafeSearchParams } from '@/hooks/useSafeRouter';
@@ -13,108 +15,117 @@ import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { createStyles } from './styles';
 
-interface CustomerDetail {
+const EXPO_PUBLIC_BACKEND_BASE_URL = process.env.EXPO_PUBLIC_BACKEND_BASE_URL;
+
+interface Customer {
   id: number;
   name: string;
   phone?: string;
   avatar?: string;
-  tags: Array<{ name: string; category: string }>;
-  aiBrief: {
-    summary: string;
-    suggestions: Array<{
-      type: string;
-      content: string;
-    }>;
-  };
-  generatedMessages: Array<{
-    id: number;
-    type: string;
-    content: string;
-  }>;
-  followUpHistory: Array<{
-    id: number;
-    date: string;
-    content: string;
-  }>;
+  customer_tags?: Array<{ tag_name: string; category: string }>;
+  follow_up_records?: Array<{ id: number; created_at: string; content: string }>;
+  ai_briefs?: Array<{ summary: string; suggestions: any }>;
+  generated_messages?: Array<{ id: number; type: string; content: string }>;
 }
-
-// Mock data for demo
-const MOCK_CUSTOMER_DETAIL: CustomerDetail = {
-  id: 1,
-  name: '张女士',
-  phone: '138****1234',
-  tags: [
-    { name: '#女儿中考', category: '家庭动态' },
-    { name: '#失眠', category: '健康状况' },
-    { name: '#皮肤干燥', category: '皮肤状况' },
-    { name: '#法令纹关注', category: '抗衰需求' },
-  ],
-  aiBrief: {
-    summary: '张姐最近3周到店频率降低，处于高压失眠状态，皮肤屏障脆弱。连续两次提及在意法令纹。',
-    suggestions: [
-      {
-        type: '关怀点',
-        content: '女儿刚中考完，可问候放松情况',
-      },
-      {
-        type: '推荐项目',
-        content: '建议下次主推"非刺激性的深层补水+射频抗衰"，针对法令纹做体验式营销',
-      },
-      {
-        type: '避坑提醒',
-        content: '暂时避免推荐高酸类项目',
-      },
-    ],
-  },
-  generatedMessages: [
-    {
-      id: 1,
-      type: '关怀型',
-      content:
-        '姐，最近天气热，您又为闺女升学操心，皮肤容易敏感。给您发个睡前放松小技巧，您空了看看~',
-    },
-    {
-      id: 2,
-      type: '价值型',
-      content:
-        '姐，上次您提的法令纹，我请教了老师，有个简单的手部按摩操对改善"熬夜纹"挺有效，我发您小视频呀？',
-    },
-  ],
-  followUpHistory: [
-    {
-      id: 1,
-      date: '2024-01-15',
-      content: '客户来做背部护理，提到女儿中考结束，最近压力大失眠，觉得皮肤干',
-    },
-    {
-      id: 2,
-      date: '2024-01-08',
-      content: '客户咨询抗衰项目，特别关注法令纹问题',
-    },
-  ],
-};
 
 export default function CustomerDetailScreen() {
   const { theme, isDark } = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const router = useSafeRouter();
   const params = useSafeSearchParams<{ id: number }>();
-  const [customer] = useState<CustomerDetail>(MOCK_CUSTOMER_DETAIL);
-  const [selectedMessage, setSelectedMessage] = useState<number | null>(null);
+  const [customer, setCustomer] = useState<Customer | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [deleting, setDeleting] = useState(false);
 
-  const handleGenerateMessages = () => {
-    // 调用 API 生成新话术
-    router.push('/generate-messages', { customerId: customer.id });
+  React.useEffect(() => {
+    fetchCustomer();
+  }, [params.id]);
+
+  const fetchCustomer = async () => {
+    if (!params.id) return;
+    try {
+      const response = await fetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/customers/${params.id}`);
+      const data = await response.json();
+      setCustomer(data);
+    } catch (error) {
+      console.error('Failed to fetch customer:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleCopyMessage = (content: string) => {
-    // 复制消息到剪贴板
-    console.log('Copy message:', content);
+  const handleDelete = () => {
+    Alert.alert(
+      '删除客户',
+      `确定要删除「${customer?.name}」吗？\n\n此操作不可恢复，相关的标签、跟进记录等也将被删除。`,
+      [
+        { text: '取消', style: 'cancel' },
+        { text: '删除', style: 'destructive', onPress: confirmDelete },
+      ]
+    );
+  };
+
+  const confirmDelete = async () => {
+    if (!customer) return;
+    setDeleting(true);
+    try {
+      const response = await fetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/customers/${customer.id}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        throw new Error('删除失败');
+      }
+
+      Alert.alert('成功', '客户已删除', [
+        { text: '好的', onPress: () => router.back() },
+      ]);
+    } catch (error: any) {
+      Alert.alert('错误', error.message || '删除失败，请重试');
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const handleStartRecord = () => {
     router.push('/voice-input');
   };
+
+  const handleGenerateMessages = () => {
+    if (customer) {
+      router.push('/generate-messages', { customerId: customer.id });
+    }
+  };
+
+  const handleCopyMessage = (content: string) => {
+    console.log('Copy message:', content);
+  };
+
+  if (loading) {
+    return (
+      <Screen backgroundColor={theme.backgroundRoot} statusBarStyle={isDark ? 'light' : 'dark'}>
+        <ThemedView level="root" style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={theme.primary} />
+        </ThemedView>
+      </Screen>
+    );
+  }
+
+  if (!customer) {
+    return (
+      <Screen backgroundColor={theme.backgroundRoot} statusBarStyle={isDark ? 'light' : 'dark'}>
+        <ThemedView level="root" style={styles.loadingContainer}>
+          <ThemedText variant="body" color={theme.textMuted}>客户不存在</ThemedText>
+        </ThemedView>
+      </Screen>
+    );
+  }
+
+  const tags = customer.customer_tags || [];
+  const followUpHistory = customer.follow_up_records || [];
+  const aiBriefs = customer.ai_briefs || [];
+  const generatedMessages = customer.generated_messages || [];
+  const latestBrief = aiBriefs[aiBriefs.length - 1];
 
   return (
     <Screen backgroundColor={theme.backgroundRoot} statusBarStyle={isDark ? 'light' : 'dark'}>
@@ -155,64 +166,57 @@ export default function CustomerDetailScreen() {
                 <ThemedText variant="h2" color={theme.textPrimary}>
                   {customer.name}
                 </ThemedText>
-                <ThemedText variant="small" color={theme.textMuted}>
-                  {customer.phone}
-                </ThemedText>
+                {customer.phone && (
+                  <ThemedText variant="small" color={theme.textMuted}>
+                    {customer.phone}
+                  </ThemedText>
+                )}
               </View>
             </View>
 
-            <View style={styles.tagsContainer}>
-              {customer.tags.map((tag, index) => (
-                <View key={index} style={styles.tagCategory}>
-                  <ThemedText variant="tiny" color={theme.textMuted}>
-                    {tag.category}
-                  </ThemedText>
-                  <View style={styles.tag}>
-                    <ThemedText variant="tiny" color={theme.primary}>
-                      {tag.name}
-                    </ThemedText>
+            {tags.length > 0 && (
+              <View style={styles.tagsContainer}>
+                {tags.map((tag, index) => (
+                  <View key={index} style={styles.tagCategory}>
+                    <View style={styles.tag}>
+                      <ThemedText variant="tiny" color={theme.primary}>
+                        {tag.tag_name}
+                      </ThemedText>
+                    </View>
                   </View>
-                </View>
-              ))}
-            </View>
+                ))}
+              </View>
+            )}
+
+            {/* Delete Button */}
+            <TouchableOpacity
+              style={styles.deleteButton}
+              onPress={handleDelete}
+              disabled={deleting}
+            >
+              <FontAwesome6 name="trash-can" size={16} color={theme.error} />
+              <ThemedText variant="small" color={theme.error}>
+                {deleting ? '删除中...' : '删除客户'}
+              </ThemedText>
+            </TouchableOpacity>
           </View>
 
           {/* AI Brief Section */}
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <FontAwesome6 name="brain" size={20} color={theme.accent} />
-              <ThemedText variant="title" color={theme.textPrimary}>
-                AI客户简报
-              </ThemedText>
-            </View>
-            <View style={styles.briefCard}>
-              <ThemedText variant="body" color={theme.textPrimary}>
-                {customer.aiBrief.summary}
-              </ThemedText>
-            </View>
-          </View>
-
-          {/* Suggestions Section */}
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <FontAwesome6 name="lightbulb" size={20} color={theme.accent} />
-              <ThemedText variant="title" color={theme.textPrimary}>
-                跟进建议
-              </ThemedText>
-            </View>
-            {customer.aiBrief.suggestions.map((suggestion, index) => (
-              <View key={index} style={styles.suggestionCard}>
-                <View style={styles.suggestionType}>
-                  <ThemedText variant="captionMedium" color={theme.buttonPrimaryText}>
-                    {suggestion.type}
-                  </ThemedText>
-                </View>
-                <ThemedText variant="small" color={theme.textSecondary}>
-                  {suggestion.content}
+          {latestBrief && (
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <FontAwesome6 name="brain" size={20} color={theme.accent} />
+                <ThemedText variant="title" color={theme.textPrimary}>
+                  AI客户简报
                 </ThemedText>
               </View>
-            ))}
-          </View>
+              <View style={styles.briefCard}>
+                <ThemedText variant="body" color={theme.textPrimary}>
+                  {latestBrief.summary}
+                </ThemedText>
+              </View>
+            </View>
+          )}
 
           {/* Generated Messages Section */}
           <View style={styles.section}>
@@ -231,15 +235,8 @@ export default function CustomerDetailScreen() {
                 生成新话术
               </ThemedText>
             </TouchableOpacity>
-            {customer.generatedMessages.map((message) => (
-              <TouchableOpacity
-                key={message.id}
-                style={[
-                  styles.messageCard,
-                  selectedMessage === message.id && styles.messageCardSelected,
-                ]}
-                onPress={() => setSelectedMessage(message.id)}
-              >
+            {generatedMessages.slice(-3).reverse().map((message) => (
+              <View key={message.id} style={styles.messageCard}>
                 <View style={styles.messageHeader}>
                   <View style={styles.messageType}>
                     <ThemedText variant="tiny" color={theme.buttonPrimaryText}>
@@ -256,29 +253,31 @@ export default function CustomerDetailScreen() {
                 <ThemedText variant="small" color={theme.textPrimary}>
                   {message.content}
                 </ThemedText>
-              </TouchableOpacity>
+              </View>
             ))}
           </View>
 
           {/* Follow-up History Section */}
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <FontAwesome5 name="history" size={20} color={theme.accent} />
-              <ThemedText variant="title" color={theme.textPrimary}>
-                跟进记录
-              </ThemedText>
-            </View>
-            {customer.followUpHistory.map((record) => (
-              <View key={record.id} style={styles.historyCard}>
-                <ThemedText variant="caption" color={theme.textMuted}>
-                  {record.date}
-                </ThemedText>
-                <ThemedText variant="small" color={theme.textSecondary}>
-                  {record.content}
+          {followUpHistory.length > 0 && (
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <FontAwesome5 name="history" size={20} color={theme.accent} />
+                <ThemedText variant="title" color={theme.textPrimary}>
+                  跟进记录
                 </ThemedText>
               </View>
-            ))}
-          </View>
+              {followUpHistory.slice(-5).reverse().map((record) => (
+                <View key={record.id} style={styles.historyCard}>
+                  <ThemedText variant="caption" color={theme.textMuted}>
+                    {record.created_at?.split('T')[0]}
+                  </ThemedText>
+                  <ThemedText variant="small" color={theme.textSecondary}>
+                    {record.content}
+                  </ThemedText>
+                </View>
+              ))}
+            </View>
+          )}
         </ScrollView>
       </ThemedView>
     </Screen>
