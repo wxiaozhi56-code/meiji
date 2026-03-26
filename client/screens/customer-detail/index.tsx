@@ -4,10 +4,12 @@ import {
   ScrollView,
   TouchableOpacity,
   Image,
-  Alert,
   ActivityIndicator,
+  Modal,
+  Pressable,
 } from 'react-native';
 import { FontAwesome5, FontAwesome6 } from '@expo/vector-icons';
+import Toast from 'react-native-toast-message';
 import { useSafeRouter, useSafeSearchParams } from '@/hooks/useSafeRouter';
 import { useTheme } from '@/hooks/useTheme';
 import { Screen } from '@/components/Screen';
@@ -36,6 +38,7 @@ export default function CustomerDetailScreen() {
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   React.useEffect(() => {
     fetchCustomer();
@@ -55,18 +58,12 @@ export default function CustomerDetailScreen() {
   };
 
   const handleDelete = () => {
-    Alert.alert(
-      '删除客户',
-      `确定要删除「${customer?.name}」吗？\n\n此操作不可恢复，相关的标签、跟进记录等也将被删除。`,
-      [
-        { text: '取消', style: 'cancel' },
-        { text: '删除', style: 'destructive', onPress: confirmDelete },
-      ]
-    );
+    setShowDeleteModal(true);
   };
 
   const confirmDelete = async () => {
     if (!customer) return;
+    setShowDeleteModal(false);
     setDeleting(true);
     try {
       const response = await fetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/customers/${customer.id}`, {
@@ -77,11 +74,21 @@ export default function CustomerDetailScreen() {
         throw new Error('删除失败');
       }
 
-      Alert.alert('成功', '客户已删除', [
-        { text: '好的', onPress: () => router.back() },
-      ]);
+      Toast.show({
+        type: 'success',
+        text1: '删除成功',
+        text2: '客户已删除',
+      });
+
+      setTimeout(() => {
+        router.back();
+      }, 500);
     } catch (error: any) {
-      Alert.alert('错误', error.message || '删除失败，请重试');
+      Toast.show({
+        type: 'error',
+        text1: '删除失败',
+        text2: error.message || '请重试',
+      });
     } finally {
       setDeleting(false);
     }
@@ -177,12 +184,10 @@ export default function CustomerDetailScreen() {
             {tags.length > 0 && (
               <View style={styles.tagsContainer}>
                 {tags.map((tag, index) => (
-                  <View key={index} style={styles.tagCategory}>
-                    <View style={styles.tag}>
-                      <ThemedText variant="tiny" color={theme.primary}>
-                        {tag.tag_name}
-                      </ThemedText>
-                    </View>
+                  <View key={index} style={styles.tag}>
+                    <ThemedText variant="tiny" color={theme.primary}>
+                      {tag.tag_name}
+                    </ThemedText>
                   </View>
                 ))}
               </View>
@@ -279,6 +284,46 @@ export default function CustomerDetailScreen() {
             </View>
           )}
         </ScrollView>
+
+        {/* Delete Confirmation Modal */}
+        <Modal
+          visible={showDeleteModal}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setShowDeleteModal(false)}
+        >
+          <Pressable style={styles.modalOverlay} onPress={() => setShowDeleteModal(false)}>
+            <Pressable style={styles.modalContent} onPress={(e) => e.stopPropagation()}>
+              <ThemedText variant="h3" color={theme.textPrimary}>
+                确认删除
+              </ThemedText>
+              <ThemedText variant="body" color={theme.textSecondary} style={styles.modalText}>
+                确定要删除「{customer?.name}」吗？
+              </ThemedText>
+              <ThemedText variant="small" color={theme.textMuted}>
+                此操作不可恢复，相关的标签、跟进记录等也将被删除。
+              </ThemedText>
+              <View style={styles.modalButtons}>
+                <TouchableOpacity
+                  style={styles.modalCancelButton}
+                  onPress={() => setShowDeleteModal(false)}
+                >
+                  <ThemedText variant="bodyMedium" color={theme.textPrimary}>
+                    取消
+                  </ThemedText>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.modalDeleteButton}
+                  onPress={confirmDelete}
+                >
+                  <ThemedText variant="bodyMedium" color={theme.buttonPrimaryText}>
+                    删除
+                  </ThemedText>
+                </TouchableOpacity>
+              </View>
+            </Pressable>
+          </Pressable>
+        </Modal>
       </ThemedView>
     </Screen>
   );

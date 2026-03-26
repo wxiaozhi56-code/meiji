@@ -187,5 +187,40 @@ export const createStyles = (theme: Theme) => {
       justifyContent: 'center',
       alignItems: 'center',
     },
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0, 0, 0, 0.5)',
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    modalContent: {
+      backgroundColor: theme.backgroundDefault,
+      borderRadius: BorderRadius.xl,
+      padding: Spacing['2xl'],
+      width: '85%',
+      maxWidth: 320,
+    },
+    modalText: {
+      marginVertical: Spacing.lg,
+    },
+    modalButtons: {
+      flexDirection: 'row',
+      gap: Spacing.md,
+      marginTop: Spacing.xl,
+    },
+    modalCancelButton: {
+      flex: 1,
+      paddingVertical: Spacing.lg,
+      borderRadius: BorderRadius.lg,
+      backgroundColor: theme.backgroundTertiary,
+      alignItems: 'center',
+    },
+    modalDeleteButton: {
+      flex: 1,
+      paddingVertical: Spacing.lg,
+      borderRadius: BorderRadius.lg,
+      backgroundColor: theme.error,
+      alignItems: 'center',
+    },
   });
 };
