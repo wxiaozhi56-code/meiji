@@ -19,6 +19,19 @@ import { createStyles } from './styles';
 
 const EXPO_PUBLIC_BACKEND_BASE_URL = process.env.EXPO_PUBLIC_BACKEND_BASE_URL;
 
+// 跨平台提示函数
+const showAlert = (title: string, message: string, buttons?: { text: string; onPress?: () => void }[]) => {
+  if (Platform.OS === 'web') {
+    // Web 端使用原生 alert，成功时提供确认回调
+    window.alert(`${title}\n${message}`);
+    if (buttons && buttons.length > 0 && buttons[0].onPress) {
+      buttons[0].onPress();
+    }
+  } else {
+    Alert.alert(title, message, buttons);
+  }
+};
+
 // 预设标签列表
 const PRESET_TAGS = [
   '新客户',
@@ -63,12 +76,12 @@ export default function AddCustomerScreen() {
 
   const handleSave = async () => {
     if (!name.trim()) {
-      Alert.alert('提示', '请输入客户姓名');
+      showAlert('提示', '请输入客户姓名');
       return;
     }
 
     if (!token) {
-      Alert.alert('提示', '请先登录');
+      showAlert('提示', '请先登录');
       router.replace('/login');
       return;
     }
@@ -108,11 +121,11 @@ export default function AddCustomerScreen() {
         throw new Error(data.message || data.error || '保存失败');
       }
 
-      Alert.alert('成功', '客户添加成功', [
+      showAlert('成功', '客户添加成功', [
         { text: '好的', onPress: () => router.back() },
       ]);
     } catch (error: any) {
-      Alert.alert('错误', error.message || '保存失败，请重试');
+      showAlert('错误', error.message || '保存失败，请重试');
     } finally {
       setLoading(false);
     }

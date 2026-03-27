@@ -16,7 +16,7 @@ const upload = multer({
 });
 
 // 初始化 S3 Storage
-const storage = new S3Storage({
+const s3Storage = new S3Storage({
   endpointUrl: process.env.COZE_BUCKET_ENDPOINT_URL,
   accessKey: "",
   secretKey: "",
@@ -71,16 +71,15 @@ router.post('/audio', authenticate, enforceDataIsolation, requireBeautician, upl
     }
 
     // 1. 上传到对象存储
-    const storage = getStorage();
     const fileName = `voice/${storeId}/${Date.now()}_${originalname || 'audio.m4a'}`;
-    const key = await storage.uploadFile({
+    const key = await s3Storage.uploadFile({
       fileContent: buffer,
       fileName,
       contentType: mimetype || 'audio/mp4',
     });
 
     // 生成签名 URL 用于 ASR
-    const audioUrl = await storage.generatePresignedUrl({
+    const audioUrl = await s3Storage.generatePresignedUrl({
       key,
       expireTime: 3600,
     });
