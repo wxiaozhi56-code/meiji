@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { FontAwesome6 } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeRouter } from '@/hooks/useSafeRouter';
 import { useTheme } from '@/hooks/useTheme';
 import { Screen } from '@/components/Screen';
@@ -38,19 +39,42 @@ export default function HomeScreen() {
 
   const fetchCustomers = useCallback(async () => {
     try {
+      // 从 AsyncStorage 获取 token
+      const token = await AsyncStorage.getItem('auth_token');
+      
+      if (!token) {
+        console.log('No auth token found, redirecting to login');
+        router.replace('/login');
+        return;
+      }
+
       /**
-       * 服务端文件：server/src/index.ts
+       * 服务端文件：server/src/routes/customer.routes.ts
        * 接口：GET /api/v1/customers
+       * 需要认证：Bearer token
        */
-      const response = await fetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/customers`);
-      const data = await response.json();
-      setCustomers(data || []);
+      const response = await fetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/customers`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      const result = await response.json();
+      
+      if (response.ok && result.success) {
+        // 新API返回 { success: true, data: [...] }
+        setCustomers(result.data || []);
+      } else {
+        console.error('Failed to fetch customers:', result.message || 'Unknown error');
+        setCustomers([]);
+      }
     } catch (error) {
       console.error('Failed to fetch customers:', error);
+      setCustomers([]);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [router]);
 
   useFocusEffect(
     useCallback(() => {

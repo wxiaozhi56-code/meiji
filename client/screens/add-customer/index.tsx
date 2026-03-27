@@ -9,6 +9,7 @@ import {
   Platform,
 } from 'react-native';
 import { FontAwesome6 } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeRouter } from '@/hooks/useSafeRouter';
 import { useTheme } from '@/hooks/useTheme';
 import { Screen } from '@/components/Screen';
@@ -67,6 +68,15 @@ export default function AddCustomerScreen() {
 
     setLoading(true);
     try {
+      // 从 AsyncStorage 获取 token
+      const token = await AsyncStorage.getItem('auth_token');
+      
+      if (!token) {
+        Alert.alert('提示', '请先登录');
+        router.replace('/login');
+        return;
+      }
+
       // 组合备注内容：标签 + 用户输入的备注
       const tagString = selectedTags.map((t) => `#${t}`).join(' ');
       const fullNotes = tagString
@@ -76,13 +86,17 @@ export default function AddCustomerScreen() {
         : notes.trim();
 
       /**
-       * 服务端文件：server/src/index.ts
+       * 服务端文件：server/src/routes/customer.routes.ts
        * 接口：POST /api/v1/customers
        * Body 参数：name: string, phone?: string, notes?: string
+       * 需要认证：Bearer token
        */
       const response = await fetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/customers`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
         body: JSON.stringify({ 
           name: name.trim(), 
           phone: phone.trim(), 
@@ -93,7 +107,7 @@ export default function AddCustomerScreen() {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || '保存失败');
+        throw new Error(data.message || data.error || '保存失败');
       }
 
       Alert.alert('成功', '客户添加成功', [

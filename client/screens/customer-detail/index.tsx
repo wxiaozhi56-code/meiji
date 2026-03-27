@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { FontAwesome5, FontAwesome6 } from '@expo/vector-icons';
 import Toast from 'react-native-toast-message';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeRouter, useSafeSearchParams } from '@/hooks/useSafeRouter';
 import { useTheme } from '@/hooks/useTheme';
 import { Screen } from '@/components/Screen';
@@ -62,9 +63,24 @@ export default function CustomerDetailScreen() {
   const fetchCustomer = async () => {
     if (!params.id) return;
     try {
-      const response = await fetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/customers/${params.id}`);
-      const data = await response.json();
-      setCustomer(data);
+      const token = await AsyncStorage.getItem('auth_token');
+      if (!token) {
+        router.replace('/login');
+        return;
+      }
+
+      const response = await fetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/customers/${params.id}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      const result = await response.json();
+      
+      if (response.ok && result.success) {
+        setCustomer(result.data);
+      } else {
+        console.error('Failed to fetch customer:', result.message);
+      }
     } catch (error) {
       console.error('Failed to fetch customer:', error);
     } finally {
@@ -79,12 +95,21 @@ export default function CustomerDetailScreen() {
   // 删除跟进记录
   const handleDeleteFollowUpRecord = async (recordId: number) => {
     try {
+      const token = await AsyncStorage.getItem('auth_token');
+      if (!token) {
+        router.replace('/login');
+        return;
+      }
+
       /**
        * 服务端文件：server/src/index.ts
        * 接口：DELETE /api/v1/follow-up-records/:id
        */
       const response = await fetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/follow-up-records/${recordId}`, {
         method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
       });
 
       if (!response.ok) {
@@ -132,6 +157,12 @@ export default function CustomerDetailScreen() {
 
     setSavingProfile(true);
     try {
+      const token = await AsyncStorage.getItem('auth_token');
+      if (!token) {
+        router.replace('/login');
+        return;
+      }
+
       /**
        * 服务端文件：server/src/index.ts
        * 接口：POST /api/v1/customer-profiles
@@ -141,6 +172,7 @@ export default function CustomerDetailScreen() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify({
           customerId: customer.id,
@@ -173,8 +205,17 @@ export default function CustomerDetailScreen() {
 
   const handleDeleteProfile = async (profileId: number) => {
     try {
+      const token = await AsyncStorage.getItem('auth_token');
+      if (!token) {
+        router.replace('/login');
+        return;
+      }
+
       const response = await fetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/customer-profiles/${profileId}`, {
         method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
       });
 
       if (!response.ok) {
@@ -201,8 +242,17 @@ export default function CustomerDetailScreen() {
     setShowDeleteModal(false);
     setDeleting(true);
     try {
+      const token = await AsyncStorage.getItem('auth_token');
+      if (!token) {
+        router.replace('/login');
+        return;
+      }
+
       const response = await fetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/customers/${customer.id}`, {
         method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
       });
 
       if (!response.ok) {
