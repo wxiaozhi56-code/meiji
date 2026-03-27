@@ -5,6 +5,9 @@ import { getSupabaseClient } from "./storage/database/supabase-client";
 import { ASRClient, LLMClient, Config, HeaderUtils, S3Storage } from "coze-coding-dev-sdk";
 import authRoutes from "./routes/auth.routes";
 import customerRoutes from "./routes/customer.routes";
+import followUpPlansRoutes from "./routes/follow-up-plans.routes";
+import uploadRoutes from "./routes/upload.routes";
+import aiRoutes from "./routes/ai.routes";
 
 const app = express();
 const port = process.env.PORT || 9091;
@@ -31,6 +34,16 @@ app.use('/api/v1/auth', authRoutes);
 
 // Customer routes (with data isolation)
 app.use('/api/v1/customers', customerRoutes);
+
+// Follow-up plans routes (with data isolation)
+app.use('/api/v1/follow-up-plans', followUpPlansRoutes);
+
+// Upload routes (with data isolation)
+app.use('/api/v1/upload', uploadRoutes);
+
+// AI routes (with data isolation)
+app.use('/api/v1/analysis', aiRoutes);
+app.use('/api/v1/ai', aiRoutes);
 
 // Initialize S3 Storage
 const storage = new S3Storage({
