@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect, useCallback } from 'react';
+import React, { useMemo, useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   ScrollView,
@@ -56,10 +56,19 @@ export default function DashboardScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [activeFilter, setActiveFilter] = useState<'today' | 'week' | 'all'>('today');
+  
+  // 使用 ref 跟踪当前 filter 和请求状态，避免依赖循环
+  const activeFilterRef = useRef(activeFilter);
+  const isFetchingRef = useRef(false);
+  activeFilterRef.current = activeFilter;
 
-  const fetchData = useCallback(async () => {
-    if (!token) return;
+  // 获取数据 - 不依赖 activeFilter，使用 ref 获取当前值
+  const fetchData = useCallback(async (showLoading = false) => {
+    if (!token || isFetchingRef.current) return;
 
+    isFetchingRef.current = true;
+    if (showLoading) setLoading(true);
+    
     try {
       // 先计算跟进计划
       await fetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/follow-up-plans/calculate`, {
@@ -78,8 +87,9 @@ export default function DashboardScreen() {
       const statsData = await statsRes.json();
       setStats(statsData);
 
-      // 获取待跟进列表
-      const timing = activeFilter === 'today' ? 'today' : activeFilter === 'week' ? 'this_week' : '';
+      // 获取待跟进列表 - 使用 ref 获取当前 filter
+      const currentFilter = activeFilterRef.current;
+      const timing = currentFilter === 'today' ? 'today' : currentFilter === 'week' ? 'this_week' : '';
       const plansRes = await fetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/follow-up-plans${timing ? `?timing=${timing}` : ''}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -92,24 +102,38 @@ export default function DashboardScreen() {
     } finally {
       setLoading(false);
       setRefreshing(false);
+      isFetchingRef.current = false;
     }
-  }, [token, activeFilter]);
+  }, [token]); // 不再依赖 activeFilter
 
+  // 认证检查
   useFocusEffect(
     useCallback(() => {
-      // 等待认证状态加载完成
       if (authLoading) return;
-      
-      // 未登录则跳转到登录页
       if (!isAuthenticated) {
         router.replace('/login');
-        return;
       }
-      
-      // 已登录则获取数据
-      fetchData();
-    }, [authLoading, isAuthenticated, router, fetchData])
+    }, [authLoading, isAuthenticated, router])
   );
+
+  // 数据获取 - 仅在页面焦点变化时触发
+  useFocusEffect(
+    useCallback(() => {
+      if (isAuthenticated && token) {
+        fetchData(true);
+      }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isAuthenticated, token])
+  );
+
+  // 当 activeFilter 变化时重新获取数据（不显示loading）
+  useEffect(() => {
+    // 跳过首次渲染，避免重复请求
+    if (isAuthenticated && token && !loading) {
+      fetchData(false);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeFilter]);
 
   const handleRefresh = () => {
     setRefreshing(true);
