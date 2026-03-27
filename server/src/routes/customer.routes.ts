@@ -134,7 +134,8 @@ router.get('/:id', authenticate, enforceDataIsolation, requireBeautician, async 
         follow_up_records (*),
         ai_briefs (*),
         generated_messages (*),
-        customer_profiles (*)
+        customer_profiles (*),
+        responsible_user:users!customers_responsible_user_id_fkey (id, name, phone)
       `)
       .eq('id', id);
 
@@ -153,17 +154,33 @@ router.get('/:id', authenticate, enforceDataIsolation, requireBeautician, async 
       return res.status(404).json({ success: false, error: '客户不存在或无权访问' });
     }
 
+    // 计算最后跟进时间
+    let lastFollowUpAt = null;
+    if (data.follow_up_records && data.follow_up_records.length > 0) {
+      // 按时间排序，取最新的
+      const sortedRecords = [...data.follow_up_records].sort(
+        (a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
+      lastFollowUpAt = sortedRecords[0].created_at;
+    }
+
+    // 添加最后跟进时间到返回数据
+    const resultData = {
+      ...data,
+      last_follow_up_at: lastFollowUpAt,
+    };
+
     // 过滤掉过期的智能话术
-    if (data.generated_messages && data.generated_messages.length > 0) {
+    if (resultData.generated_messages && resultData.generated_messages.length > 0) {
       const now = new Date();
-      data.generated_messages = data.generated_messages.filter(
+      resultData.generated_messages = resultData.generated_messages.filter(
         (msg: any) => !msg.expires_at || new Date(msg.expires_at) > now
       );
     }
 
     res.json({
       success: true,
-      data,
+      data: resultData,
     });
   } catch (error: any) {
     console.error('Error fetching customer:', error);

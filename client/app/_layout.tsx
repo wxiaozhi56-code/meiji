@@ -34,6 +34,9 @@ export default function RootLayout() {
             <Stack.Screen name="voice-input" options={{ title: "语音录入" }} />
             <Stack.Screen name="generate-messages" options={{ title: "生成话术" }} />
             <Stack.Screen name="employee-management" options={{ title: "员工管理" }} />
+            <Stack.Screen name="profile" options={{ title: "个人中心" }} />
+            <Stack.Screen name="store-settings" options={{ title: "门店设置" }} />
+            <Stack.Screen name="statistics" options={{ title: "数据统计" }} />
           </Stack>
           <Toast />
         </GestureHandlerRootView>

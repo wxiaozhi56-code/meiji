@@ -259,9 +259,10 @@ export default function HomeScreen() {
                   <ThemedText variant="small" color={theme.primary}>员工</ThemedText>
                 </TouchableOpacity>
               )}
-              <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-                <FontAwesome6 name="right-from-bracket" size={18} color={theme.textMuted} />
-                <ThemedText variant="small" color={theme.textMuted}>退出</ThemedText>
+              {/* 个人中心入口 */}
+              <TouchableOpacity style={styles.profileButton} onPress={() => router.push('/profile')}>
+                <FontAwesome6 name="user-circle" size={18} color={theme.textMuted} />
+                <ThemedText variant="small" color={theme.textMuted}>我的</ThemedText>
               </TouchableOpacity>
             </View>
           </View>

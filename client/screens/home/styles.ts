@@ -57,6 +57,15 @@ export const createStyles = (theme: Theme) => {
       borderRadius: BorderRadius.md,
       backgroundColor: theme.backgroundTertiary,
     },
+    profileButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: Spacing.xs,
+      paddingHorizontal: Spacing.md,
+      paddingVertical: Spacing.sm,
+      borderRadius: BorderRadius.md,
+      backgroundColor: theme.backgroundTertiary,
+    },
     headerTop: {
       flexDirection: 'row',
       justifyContent: 'space-between',

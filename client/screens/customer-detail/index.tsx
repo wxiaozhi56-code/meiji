@@ -14,12 +14,32 @@ import Toast from 'react-native-toast-message';
 import { useSafeRouter, useSafeSearchParams } from '@/hooks/useSafeRouter';
 import { useTheme } from '@/hooks/useTheme';
 import { useAuth } from '@/contexts/AuthContext';
+import { Spacing } from '@/constants/theme';
 import { Screen } from '@/components/Screen';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { createStyles } from './styles';
 
 const EXPO_PUBLIC_BACKEND_BASE_URL = process.env.EXPO_PUBLIC_BACKEND_BASE_URL;
+
+// 计算距离今天的天数
+const getDaysDiff = (dateStr: string): number => {
+  const date = new Date(dateStr);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  date.setHours(0, 0, 0, 0);
+  const diffTime = today.getTime() - date.getTime();
+  return Math.floor(diffTime / (1000 * 60 * 60 * 24));
+};
+
+// 格式化天数显示
+const formatDaysDiff = (days: number): { text: string; color: string } => {
+  if (days === 0) return { text: '今天', color: '#10B981' };
+  if (days === 1) return { text: '昨天', color: '#3B82F6' };
+  if (days <= 7) return { text: `${days}天前`, color: '#3B82F6' };
+  if (days <= 30) return { text: `${days}天前`, color: '#F59E0B' };
+  return { text: `${days}天前`, color: '#EF4444' }; // 超过30天显示红色
+};
 
 interface CustomerProfile {
   id: number;
@@ -37,6 +57,9 @@ interface Customer {
   follow_up_records?: Array<{ id: number; created_at: string; content: string; audio_url?: string }>;
   ai_briefs?: Array<{ id: number; summary: string; suggestions: any; follow_up_record_id?: number }>;
   generated_messages?: Array<{ id: number; type: string; content: string; follow_up_record_id?: number }>;
+  last_follow_up_at?: string; // 最后跟进时间
+  responsible_user_id?: number; // 负责人ID
+  responsible_user?: { id: number; name: string; phone: string }; // 负责人信息
 }
 
 export default function CustomerDetailScreen() {
@@ -44,7 +67,7 @@ export default function CustomerDetailScreen() {
   const styles = useMemo(() => createStyles(theme), [theme]);
   const router = useSafeRouter();
   const params = useSafeSearchParams<{ id: number }>();
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
@@ -56,6 +79,12 @@ export default function CustomerDetailScreen() {
   const [profileFieldValue, setProfileFieldValue] = useState('');
   const [editingProfile, setEditingProfile] = useState<CustomerProfile | null>(null);
   const [savingProfile, setSavingProfile] = useState(false);
+  
+  // 客户分配状态
+  const [showAssignModal, setShowAssignModal] = useState(false);
+  const [employees, setEmployees] = useState<Array<{ id: number; name: string; phone: string; role: string }>>([]);
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState<number | null>(null);
+  const [assigning, setAssigning] = useState(false);
 
   React.useEffect(() => {
     fetchCustomer();
@@ -81,6 +110,82 @@ export default function CustomerDetailScreen() {
     } finally {
       setLoading(false);
     }
+  };
+
+  // 获取员工列表（用于分配客户）
+  const fetchEmployees = async () => {
+    if (!token) return;
+    try {
+      const response = await fetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/stores/employees`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      const data = await response.json();
+      
+      if (response.ok && data.success) {
+        setEmployees(data.data || []);
+      }
+    } catch (error) {
+      console.error('Failed to fetch employees:', error);
+    }
+  };
+
+  // 分配客户
+  const handleAssign = async () => {
+    if (!customer || !selectedEmployeeId || !token) {
+      Toast.show({
+        type: 'error',
+        text1: '请选择美容师',
+      });
+      return;
+    }
+
+    setAssigning(true);
+    try {
+      const response = await fetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/stores/customers/${customer.id}/assign`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          responsibleUserId: selectedEmployeeId,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || '分配失败');
+      }
+
+      Toast.show({
+        type: 'success',
+        text1: '分配成功',
+        text2: data.message,
+      });
+
+      setShowAssignModal(false);
+      fetchCustomer(); // 刷新数据
+    } catch (error: any) {
+      Toast.show({
+        type: 'error',
+        text1: '分配失败',
+        text2: error.message,
+      });
+    } finally {
+      setAssigning(false);
+    }
+  };
+
+  // 打开分配Modal
+  const handleOpenAssignModal = () => {
+    if (!customer) return;
+    fetchEmployees();
+    setSelectedEmployeeId(customer.responsible_user_id || null);
+    setShowAssignModal(true);
   };
 
   const handleDelete = () => {
@@ -338,6 +443,10 @@ export default function CustomerDetailScreen() {
   const aiBriefs = customer.ai_briefs || [];
   const generatedMessages = customer.generated_messages || [];
   const latestBrief = aiBriefs[aiBriefs.length - 1];
+  
+  // 计算最后跟进时间
+  const lastFollowUpDays = customer.last_follow_up_at ? getDaysDiff(customer.last_follow_up_at) : null;
+  const lastFollowUpDisplay = lastFollowUpDays !== null ? formatDaysDiff(lastFollowUpDays) : null;
 
   return (
     <Screen backgroundColor={theme.backgroundRoot} statusBarStyle={isDark ? 'light' : 'dark'}>
@@ -401,6 +510,49 @@ export default function CustomerDetailScreen() {
                   </View>
                 ))}
               </View>
+            )}
+
+            {/* 最后跟进时间 */}
+            {lastFollowUpDisplay && (
+              <View style={styles.lastFollowUpContainer}>
+                <View style={styles.lastFollowUpInfo}>
+                  <FontAwesome6 name="clock-rotate-left" size={16} color={lastFollowUpDisplay.color} />
+                  <ThemedText variant="small" color={theme.textSecondary}>
+                    最后跟进：<ThemedText variant="smallMedium" color={lastFollowUpDisplay.color}>{lastFollowUpDisplay.text}</ThemedText>
+                  </ThemedText>
+                </View>
+                {lastFollowUpDays !== null && lastFollowUpDays > 7 && (
+                  <View style={[styles.reminderBadge, lastFollowUpDays > 30 && styles.reminderBadgeUrgent]}>
+                    <ThemedText variant="tiny" color={lastFollowUpDays > 30 ? '#FFFFFF' : lastFollowUpDisplay.color}>
+                      {lastFollowUpDays > 30 ? '需关注' : '建议跟进'}
+                    </ThemedText>
+                  </View>
+                )}
+              </View>
+            )}
+
+            {/* 负责人信息 */}
+            {customer.responsible_user && (
+              <View style={styles.responsibleUserContainer}>
+                <FontAwesome6 name="user-check" size={14} color={theme.textMuted} />
+                <ThemedText variant="small" color={theme.textMuted}>
+                  负责人：{customer.responsible_user.name}
+                </ThemedText>
+                {/* 分配按钮 - 只有老板和店长可见 */}
+                {user?.role !== 'beautician' && (
+                  <TouchableOpacity onPress={handleOpenAssignModal}>
+                    <ThemedText variant="small" color={theme.primary}>更换</ThemedText>
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
+            
+            {/* 如果没有负责人，显示分配按钮 */}
+            {!customer.responsible_user && user?.role !== 'beautician' && (
+              <TouchableOpacity style={styles.assignButton} onPress={handleOpenAssignModal}>
+                <FontAwesome6 name="user-plus" size={16} color={theme.primary} />
+                <ThemedText variant="small" color={theme.primary}>分配负责人</ThemedText>
+              </TouchableOpacity>
             )}
 
             {/* Quick Actions - 快捷操作 */}
@@ -716,6 +868,77 @@ export default function CustomerDetailScreen() {
                     <ThemedText variant="bodyMedium" color={theme.buttonPrimaryText}>
                       保存
                     </ThemedText>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </Pressable>
+          </Pressable>
+        </Modal>
+
+        {/* Assign Customer Modal - 分配客户 */}
+        <Modal
+          visible={showAssignModal}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setShowAssignModal(false)}
+        >
+          <Pressable style={styles.modalOverlay} onPress={() => setShowAssignModal(false)}>
+            <Pressable style={styles.profileModalContent} onPress={(e) => e.stopPropagation()}>
+              <View style={styles.modalHeader}>
+                <ThemedText variant="h3" color={theme.textPrimary}>分配客户</ThemedText>
+                <TouchableOpacity onPress={() => setShowAssignModal(false)}>
+                  <FontAwesome6 name="xmark" size={20} color={theme.textMuted} />
+                </TouchableOpacity>
+              </View>
+              
+              <View style={styles.modalBody}>
+                <ThemedText variant="small" color={theme.textMuted} style={{ marginBottom: Spacing.lg }}>
+                  选择要分配的美容师：
+                </ThemedText>
+                
+                {employees.map((employee) => (
+                  <TouchableOpacity
+                    key={employee.id}
+                    style={[
+                      styles.employeeItem,
+                      selectedEmployeeId === employee.id && styles.employeeItemSelected,
+                    ]}
+                    onPress={() => setSelectedEmployeeId(employee.id)}
+                  >
+                    <View style={styles.employeeAvatar}>
+                      <ThemedText variant="h4" color={theme.primary}>
+                        {employee.name.charAt(0)}
+                      </ThemedText>
+                    </View>
+                    <View style={styles.employeeInfo}>
+                      <ThemedText variant="bodyMedium" color={theme.textPrimary}>{employee.name}</ThemedText>
+                      <ThemedText variant="caption" color={theme.textMuted}>
+                        {employee.role === 'store_owner' ? '老板' : employee.role === 'store_manager' ? '店长' : '美容师'}
+                      </ThemedText>
+                    </View>
+                    {selectedEmployeeId === employee.id && (
+                      <FontAwesome6 name="check-circle" size={20} color={theme.primary} />
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </View>
+              
+              <View style={styles.modalFooter}>
+                <TouchableOpacity
+                  style={styles.modalCancelButton}
+                  onPress={() => setShowAssignModal(false)}
+                >
+                  <ThemedText variant="bodyMedium" color={theme.textPrimary}>取消</ThemedText>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.modalSubmitButton, assigning && styles.modalSubmitButtonDisabled]}
+                  onPress={handleAssign}
+                  disabled={assigning}
+                >
+                  {assigning ? (
+                    <ActivityIndicator size="small" color={theme.buttonPrimaryText} />
+                  ) : (
+                    <ThemedText variant="bodyMedium" color={theme.buttonPrimaryText}>确定分配</ThemedText>
                   )}
                 </TouchableOpacity>
               </View>

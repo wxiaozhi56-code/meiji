@@ -9,6 +9,7 @@ import followUpPlansRoutes from "./routes/follow-up-plans.routes";
 import uploadRoutes from "./routes/upload.routes";
 import aiRoutes from "./routes/ai.routes";
 import employeeRoutes from "./routes/employee.routes";
+import storeRoutes from "./routes/store.routes";
 
 const app = express();
 const port = process.env.PORT || 9091;
@@ -48,6 +49,9 @@ app.use('/api/v1/ai', aiRoutes);
 
 // Employee routes (with data isolation, store owner only)
 app.use('/api/v1/employees', employeeRoutes);
+
+// Store routes (with data isolation)
+app.use('/api/v1/stores', storeRoutes);
 
 // Initialize S3 Storage
 const storage = new S3Storage({
