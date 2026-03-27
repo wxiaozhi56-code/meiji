@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import {
   View,
   TouchableOpacity,
@@ -8,9 +8,11 @@ import {
 import { Audio } from 'expo-av';
 import { FontAwesome6 } from '@expo/vector-icons';
 import Toast from 'react-native-toast-message';
+import { useFocusEffect } from 'expo-router';
 import { createFormDataFile } from '@/utils';
 import { useSafeRouter, useSafeSearchParams } from '@/hooks/useSafeRouter';
 import { useTheme } from '@/hooks/useTheme';
+import { useAuth } from '@/contexts/AuthContext';
 import { Screen } from '@/components/Screen';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
@@ -23,6 +25,7 @@ export default function VoiceInputScreen() {
   const styles = useMemo(() => createStyles(theme), [theme]);
   const router = useSafeRouter();
   const params = useSafeSearchParams<{ customerId: number }>();
+  const { token, isAuthenticated, isLoading: authLoading } = useAuth();
 
   const [isRecording, setIsRecording] = useState(false);
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
@@ -32,6 +35,17 @@ export default function VoiceInputScreen() {
   const recordingRef = useRef<Audio.Recording | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const pulseAnim = useRef(new Animated.Value(1)).current;
+
+  // 认证检查
+  useFocusEffect(
+    useCallback(() => {
+      if (authLoading) return;
+      
+      if (!isAuthenticated) {
+        router.replace('/login');
+      }
+    }, [authLoading, isAuthenticated, router])
+  );
 
   // 请求录音权限
   useEffect(() => {
@@ -173,6 +187,15 @@ export default function VoiceInputScreen() {
   };
 
   const handleRecordingComplete = async (uri: string) => {
+    if (!token) {
+      Toast.show({
+        type: 'error',
+        text1: '请先登录',
+      });
+      router.replace('/login');
+      return;
+    }
+
     setProcessing(true);
     try {
       // 1. 使用 FormData 上传音频文件
@@ -184,6 +207,9 @@ export default function VoiceInputScreen() {
       // 2. 上传并处理音频
       const uploadResponse = await fetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/upload/audio`, {
         method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
         body: formData,
       });
 

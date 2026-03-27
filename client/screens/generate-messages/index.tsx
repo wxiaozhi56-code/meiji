@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import {
   View,
   ScrollView,
@@ -9,8 +9,10 @@ import {
 import { FontAwesome5, FontAwesome6 } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import Toast from 'react-native-toast-message';
+import { useFocusEffect } from 'expo-router';
 import { useSafeRouter, useSafeSearchParams } from '@/hooks/useSafeRouter';
 import { useTheme } from '@/hooks/useTheme';
+import { useAuth } from '@/contexts/AuthContext';
 import { Screen } from '@/components/Screen';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
@@ -35,6 +37,7 @@ export default function GenerateMessagesScreen() {
   const styles = useMemo(() => createStyles(theme), [theme]);
   const router = useSafeRouter();
   const params = useSafeSearchParams<{ customerId: number; followUpRecordId: number }>();
+  const { token, isAuthenticated, isLoading: authLoading } = useAuth();
 
   const [generating, setGenerating] = useState(false);
   const [customContext, setCustomContext] = useState('');
@@ -42,20 +45,35 @@ export default function GenerateMessagesScreen() {
   const [followUpRecord, setFollowUpRecord] = useState<FollowUpRecord | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // 认证检查
+  useFocusEffect(
+    useCallback(() => {
+      if (authLoading) return;
+      
+      if (!isAuthenticated) {
+        router.replace('/login');
+      }
+    }, [authLoading, isAuthenticated, router])
+  );
+
   // 获取跟进记录详情
   React.useEffect(() => {
     fetchFollowUpRecord();
   }, [params.followUpRecordId]);
 
   const fetchFollowUpRecord = async () => {
-    if (!params.followUpRecordId) {
+    if (!params.followUpRecordId || !token) {
       setLoading(false);
       return;
     }
 
     try {
       // 先从客户详情获取跟进记录
-      const response = await fetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/follow-up-records/${params.followUpRecordId}`);
+      const response = await fetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/follow-up-records/${params.followUpRecordId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
       if (response.ok) {
         const data = await response.json();
         setFollowUpRecord(data);
@@ -76,6 +94,15 @@ export default function GenerateMessagesScreen() {
       return;
     }
 
+    if (!token) {
+      Toast.show({
+        type: 'error',
+        text1: '请先登录',
+      });
+      router.replace('/login');
+      return;
+    }
+
     setGenerating(true);
     try {
       /**
@@ -87,6 +114,7 @@ export default function GenerateMessagesScreen() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify({
           customerId: params.customerId,

@@ -7,8 +7,10 @@ import {
   RefreshControl,
 } from 'react-native';
 import { FontAwesome5, FontAwesome6 } from '@expo/vector-icons';
+import { useFocusEffect } from 'expo-router';
 import { useSafeRouter, useSafeSearchParams } from '@/hooks/useSafeRouter';
 import { useTheme } from '@/hooks/useTheme';
+import { useAuth } from '@/contexts/AuthContext';
 import { Screen } from '@/components/Screen';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
@@ -59,33 +61,59 @@ export default function CustomerAnalysisScreen() {
   const styles = useMemo(() => createStyles(theme), [theme]);
   const router = useSafeRouter();
   const params = useSafeSearchParams<{ customerId: number; customerName?: string }>();
+  const { token, isAuthenticated, isLoading: authLoading } = useAuth();
 
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [report, setReport] = useState<AnalysisReport | null>(null);
   const [customer, setCustomer] = useState<Customer | null>(null);
 
+  // 认证检查
+  useFocusEffect(
+    useCallback(() => {
+      if (authLoading) return;
+      
+      if (!isAuthenticated) {
+        router.replace('/login');
+      }
+    }, [authLoading, isAuthenticated, router])
+  );
+
   useEffect(() => {
-    if (params.customerId) {
+    if (params.customerId && token) {
       fetchCustomer();
       fetchReport();
     }
-  }, [params.customerId]);
+  }, [params.customerId, token]);
 
   const fetchCustomer = useCallback(async () => {
+    if (!token) return;
+    
     try {
-      const response = await fetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/customers/${params.customerId}`);
-      const data = await response.json();
-      setCustomer(data);
+      const response = await fetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/customers/${params.customerId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      const result = await response.json();
+      if (result.success && result.data) {
+        setCustomer(result.data);
+      }
     } catch (error) {
       console.error('Failed to fetch customer:', error);
     }
-  }, [params.customerId]);
+  }, [params.customerId, token]);
 
   const fetchReport = useCallback(async () => {
+    if (!token) return;
+    
     setLoading(true);
     try {
-      const response = await fetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/analysis/${params.customerId}`);
+      const response = await fetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/analysis/${params.customerId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
       const data = await response.json();
       if (data.success && data.report) {
         setReport(data.report);
@@ -97,14 +125,22 @@ export default function CustomerAnalysisScreen() {
     } finally {
       setLoading(false);
     }
-  }, [params.customerId]);
+  }, [params.customerId, token]);
 
   const handleGenerate = async () => {
+    if (!token) {
+      router.replace('/login');
+      return;
+    }
+    
     setGenerating(true);
     try {
       const response = await fetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/analysis/generate`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
         body: JSON.stringify({ customerId: params.customerId }),
       });
       const data = await response.json();

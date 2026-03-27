@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import {
   View,
   ScrollView,
@@ -7,8 +7,10 @@ import {
   RefreshControl,
 } from 'react-native';
 import { FontAwesome5, FontAwesome6 } from '@expo/vector-icons';
+import { useFocusEffect } from 'expo-router';
 import { useSafeRouter } from '@/hooks/useSafeRouter';
 import { useTheme } from '@/hooks/useTheme';
+import { useAuth } from '@/contexts/AuthContext';
 import { Screen } from '@/components/Screen';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
@@ -47,6 +49,7 @@ export default function DashboardScreen() {
   const { theme, isDark } = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const router = useSafeRouter();
+  const { token, isAuthenticated, isLoading: authLoading } = useAuth();
 
   const [plans, setPlans] = useState<FollowUpPlan[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
@@ -54,25 +57,34 @@ export default function DashboardScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [activeFilter, setActiveFilter] = useState<'today' | 'week' | 'all'>('today');
 
-  useEffect(() => {
-    fetchData();
-  }, [activeFilter]);
+  const fetchData = useCallback(async () => {
+    if (!token) return;
 
-  const fetchData = async () => {
     try {
       // 先计算跟进计划
       await fetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/follow-up-plans/calculate`, {
         method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
       });
 
       // 获取统计数据
-      const statsRes = await fetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/follow-up-plans/stats`);
+      const statsRes = await fetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/follow-up-plans/stats`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
       const statsData = await statsRes.json();
       setStats(statsData);
 
       // 获取待跟进列表
       const timing = activeFilter === 'today' ? 'today' : activeFilter === 'week' ? 'this_week' : '';
-      const plansRes = await fetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/follow-up-plans${timing ? `?timing=${timing}` : ''}`);
+      const plansRes = await fetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/follow-up-plans${timing ? `?timing=${timing}` : ''}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
       const plansData = await plansRes.json();
       setPlans(plansData);
     } catch (error) {
@@ -81,7 +93,23 @@ export default function DashboardScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [token, activeFilter]);
+
+  useFocusEffect(
+    useCallback(() => {
+      // 等待认证状态加载完成
+      if (authLoading) return;
+      
+      // 未登录则跳转到登录页
+      if (!isAuthenticated) {
+        router.replace('/login');
+        return;
+      }
+      
+      // 已登录则获取数据
+      fetchData();
+    }, [authLoading, isAuthenticated, router, fetchData])
+  );
 
   const handleRefresh = () => {
     setRefreshing(true);
