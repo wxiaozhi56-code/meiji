@@ -4,6 +4,7 @@ import multer from "multer";
 import { getSupabaseClient } from "./storage/database/supabase-client";
 import { ASRClient, LLMClient, Config, HeaderUtils, S3Storage } from "coze-coding-dev-sdk";
 import authRoutes from "./routes/auth.routes";
+import customerRoutes from "./routes/customer.routes";
 
 const app = express();
 const port = process.env.PORT || 9091;
@@ -27,6 +28,9 @@ app.get('/api/v1/health', (req, res) => {
 
 // Auth routes
 app.use('/api/v1/auth', authRoutes);
+
+// Customer routes (with data isolation)
+app.use('/api/v1/customers', customerRoutes);
 
 // Initialize S3 Storage
 const storage = new S3Storage({
@@ -166,6 +170,11 @@ app.get('/api/v1/customers', async (req, res) => {
   }
 });
 
+// ===== 旧的客户路由已迁移到 customer.routes.ts =====
+// 新的客户路由支持认证和数据隔离
+// 以下代码已废弃，保留用于参考
+
+/* 已迁移到 customer.routes.ts
 // Create new customer
 app.post('/api/v1/customers', async (req, res) => {
   try {
@@ -220,6 +229,7 @@ app.post('/api/v1/customers', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+*/
 
 // Get customer by ID
 app.get('/api/v1/customers/:id', async (req, res) => {

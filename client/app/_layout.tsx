@@ -25,6 +25,7 @@ export default function RootLayout() {
             headerShown: false
           }}>
             <Stack.Screen name="login" options={{ title: "登录" }} />
+            <Stack.Screen name="register" options={{ title: "注册" }} />
             <Stack.Screen name="index" options={{ title: "" }} />
             <Stack.Screen name="dashboard" options={{ title: "跟进仪表盘" }} />
             <Stack.Screen name="add-customer" options={{ title: "添加客户" }} />
