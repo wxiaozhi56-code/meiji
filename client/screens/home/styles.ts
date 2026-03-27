@@ -113,6 +113,22 @@ export const createStyles = (theme: Theme) => {
       fontSize: 15,
       color: theme.textPrimary,
     },
+    filterContainer: {
+      flexDirection: 'row',
+      gap: Spacing.sm,
+      marginTop: Spacing.lg,
+    },
+    filterTab: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: Spacing.xs,
+      paddingHorizontal: Spacing.md,
+      paddingVertical: Spacing.sm,
+      borderRadius: BorderRadius.full,
+      backgroundColor: theme.backgroundDefault,
+      borderWidth: 1,
+      borderColor: theme.border,
+    },
     scrollView: {
       flex: 1,
     },

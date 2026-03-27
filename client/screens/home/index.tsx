@@ -57,6 +57,16 @@ interface Customer {
   created_at?: string;
 }
 
+// 筛选类型
+type FilterType = 'all' | 'active' | 'sleeping' | 'pending';
+
+const FILTER_LABELS: Record<FilterType, { label: string; icon: string; color: string }> = {
+  all: { label: '全部', icon: 'users', color: '#6B7280' },
+  active: { label: '活跃', icon: 'heart-pulse', color: '#10B981' },
+  sleeping: { label: '沉睡', icon: 'moon', color: '#F59E0B' },
+  pending: { label: '待跟进', icon: 'clock', color: '#EF4444' },
+};
+
 export default function HomeScreen() {
   const { theme, isDark } = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
@@ -66,6 +76,7 @@ export default function HomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activeFilter, setActiveFilter] = useState<FilterType>('all');
 
   // 检查认证状态
   useFocusEffect(
@@ -76,16 +87,23 @@ export default function HomeScreen() {
     }, [authLoading, isAuthenticated, router])
   );
 
-  const fetchCustomers = useCallback(async () => {
+  const fetchCustomers = useCallback(async (filter?: FilterType) => {
     if (!token) return;
+    
+    const currentFilter = filter || activeFilter;
     
     try {
       /**
        * 服务端文件：server/src/routes/customer.routes.ts
        * 接口：GET /api/v1/customers
+       * Query 参数：filter - 'active' | 'sleeping' | 'pending'
        * 需要认证：Bearer token
        */
-      const response = await fetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/customers`, {
+      const url = currentFilter === 'all' 
+        ? `${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/customers`
+        : `${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/customers?filter=${currentFilter}`;
+        
+      const response = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
@@ -94,7 +112,6 @@ export default function HomeScreen() {
       const result = await response.json();
       
       if (response.ok && result.success) {
-        // 新API返回 { success: true, data: [...] }
         setCustomers(result.data || []);
       } else {
         console.error('Failed to fetch customers:', result.message || 'Unknown error');
@@ -106,7 +123,7 @@ export default function HomeScreen() {
     } finally {
       setLoading(false);
     }
-  }, [token]);
+  }, [token, activeFilter]);
 
   useFocusEffect(
     useCallback(() => {
@@ -296,6 +313,40 @@ export default function HomeScreen() {
               value={searchQuery}
               onChangeText={setSearchQuery}
             />
+          </View>
+
+          {/* Filter Tabs */}
+          <View style={styles.filterContainer}>
+            {(Object.keys(FILTER_LABELS) as FilterType[]).map((filterKey) => {
+              const filterInfo = FILTER_LABELS[filterKey];
+              const isActive = activeFilter === filterKey;
+              return (
+                <TouchableOpacity
+                  key={filterKey}
+                  style={[
+                    styles.filterTab,
+                    isActive && { backgroundColor: filterInfo.color, borderColor: filterInfo.color },
+                  ]}
+                  onPress={() => {
+                    setActiveFilter(filterKey);
+                    setLoading(true);
+                    fetchCustomers(filterKey);
+                  }}
+                >
+                  <FontAwesome6 
+                    name={filterInfo.icon as any} 
+                    size={14} 
+                    color={isActive ? theme.buttonPrimaryText : filterInfo.color} 
+                  />
+                  <ThemedText 
+                    variant="smallMedium" 
+                    color={isActive ? theme.buttonPrimaryText : filterInfo.color}
+                  >
+                    {filterInfo.label}
+                  </ThemedText>
+                </TouchableOpacity>
+              );
+            })}
           </View>
         </View>
 

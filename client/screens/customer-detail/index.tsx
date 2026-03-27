@@ -52,7 +52,7 @@ interface Customer {
   name: string;
   phone?: string;
   avatar?: string;
-  customer_tags?: Array<{ tag_name: string; category: string }>;
+  customer_tags?: Array<{ id: number; tag_name: string; category: string }>;
   customer_profiles?: CustomerProfile[];
   follow_up_records?: Array<{ id: number; created_at: string; content: string; audio_url?: string }>;
   ai_briefs?: Array<{ id: number; summary: string; suggestions: any; follow_up_record_id?: number }>;
@@ -85,6 +85,13 @@ export default function CustomerDetailScreen() {
   const [employees, setEmployees] = useState<Array<{ id: number; name: string; phone: string; role: string }>>([]);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<number | null>(null);
   const [assigning, setAssigning] = useState(false);
+  
+  // 标签管理状态
+  const [showTagModal, setShowTagModal] = useState(false);
+  const [newTagName, setNewTagName] = useState('');
+  const [tagSuggestions, setTagSuggestions] = useState<Array<{ name: string; category: string }>>([]);
+  const [addingTag, setAddingTag] = useState(false);
+  const [deletingTagId, setDeletingTagId] = useState<number | null>(null);
 
   React.useEffect(() => {
     fetchCustomer();
@@ -186,6 +193,105 @@ export default function CustomerDetailScreen() {
     fetchEmployees();
     setSelectedEmployeeId(customer.responsible_user_id || null);
     setShowAssignModal(true);
+  };
+
+  // 获取标签建议
+  const fetchTagSuggestions = async () => {
+    if (!token) return;
+    try {
+      const response = await fetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/customers/tag-suggestions`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      const data = await response.json();
+      
+      if (response.ok && data.success) {
+        setTagSuggestions(data.data.presetTags || []);
+      }
+    } catch (error) {
+      console.error('Failed to fetch tag suggestions:', error);
+    }
+  };
+
+  // 打开添加标签Modal
+  const handleOpenTagModal = () => {
+    setNewTagName('');
+    fetchTagSuggestions();
+    setShowTagModal(true);
+  };
+
+  // 添加标签
+  const handleAddTag = async (tagName?: string) => {
+    if (!customer || !token) return;
+    
+    const nameToAdd = tagName || newTagName.trim();
+    if (!nameToAdd) {
+      Toast.show({ type: 'error', text1: '请输入标签名称' });
+      return;
+    }
+
+    // 检查标签是否已存在
+    if (customer.customer_tags?.some(t => t.tag_name === nameToAdd)) {
+      Toast.show({ type: 'error', text1: '该标签已存在' });
+      return;
+    }
+
+    setAddingTag(true);
+    try {
+      const response = await fetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/customers/${customer.id}/tags`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ tagName: nameToAdd }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || '添加失败');
+      }
+
+      Toast.show({ type: 'success', text1: '标签已添加' });
+      setShowTagModal(false);
+      setNewTagName('');
+      fetchCustomer(); // 刷新数据
+    } catch (error: any) {
+      Toast.show({ type: 'error', text1: '添加失败', text2: error.message });
+    } finally {
+      setAddingTag(false);
+    }
+  };
+
+  // 删除标签
+  const handleDeleteTag = async (tagId: number, tagName: string) => {
+    if (!customer || !token) return;
+
+    setDeletingTagId(tagId);
+    try {
+      const response = await fetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/customers/${customer.id}/tags/${tagId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || '删除失败');
+      }
+
+      Toast.show({ type: 'success', text1: `已删除标签「${tagName}」` });
+      fetchCustomer(); // 刷新数据
+    } catch (error: any) {
+      Toast.show({ type: 'error', text1: '删除失败', text2: error.message });
+    } finally {
+      setDeletingTagId(null);
+    }
   };
 
   const handleDelete = () => {
@@ -500,17 +606,44 @@ export default function CustomerDetailScreen() {
               </View>
             </View>
 
-            {tags.length > 0 && (
-              <View style={styles.tagsContainer}>
-                {tags.map((tag, index) => (
-                  <View key={index} style={styles.tag}>
-                    <ThemedText variant="tiny" color={theme.primary}>
-                      {tag.tag_name}
-                    </ThemedText>
-                  </View>
-                ))}
+            {/* 标签区域 */}
+            <View style={styles.tagsSection}>
+              <View style={styles.tagsHeader}>
+                <FontAwesome6 name="tags" size={14} color={theme.textMuted} />
+                <ThemedText variant="small" color={theme.textMuted}>标签</ThemedText>
+                <TouchableOpacity style={styles.addTagButton} onPress={handleOpenTagModal}>
+                  <FontAwesome6 name="plus" size={12} color={theme.primary} />
+                </TouchableOpacity>
               </View>
-            )}
+              
+              {tags.length > 0 ? (
+                <View style={styles.tagsContainer}>
+                  {tags.map((tag) => (
+                    <View key={tag.id} style={styles.tagItem}>
+                      <ThemedText variant="tiny" color={theme.primary}>
+                        {tag.tag_name}
+                      </ThemedText>
+                      <TouchableOpacity 
+                        style={styles.tagDeleteButton}
+                        onPress={() => handleDeleteTag(tag.id, tag.tag_name)}
+                        disabled={deletingTagId === tag.id}
+                      >
+                        {deletingTagId === tag.id ? (
+                          <ActivityIndicator size="small" color={theme.textMuted} />
+                        ) : (
+                          <FontAwesome6 name="xmark" size={10} color={theme.textMuted} />
+                        )}
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                </View>
+              ) : (
+                <TouchableOpacity style={styles.addFirstTagButton} onPress={handleOpenTagModal}>
+                  <FontAwesome6 name="plus" size={14} color={theme.primary} />
+                  <ThemedText variant="small" color={theme.primary}>添加标签</ThemedText>
+                </TouchableOpacity>
+              )}
+            </View>
 
             {/* 最后跟进时间 */}
             {lastFollowUpDisplay && (
@@ -941,6 +1074,68 @@ export default function CustomerDetailScreen() {
                     <ThemedText variant="bodyMedium" color={theme.buttonPrimaryText}>确定分配</ThemedText>
                   )}
                 </TouchableOpacity>
+              </View>
+            </Pressable>
+          </Pressable>
+        </Modal>
+
+        {/* Add Tag Modal - 添加标签 */}
+        <Modal
+          visible={showTagModal}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setShowTagModal(false)}
+        >
+          <Pressable style={styles.modalOverlay} onPress={() => setShowTagModal(false)}>
+            <Pressable style={styles.profileModalContent} onPress={(e) => e.stopPropagation()}>
+              <View style={styles.modalHeader}>
+                <ThemedText variant="h3" color={theme.textPrimary}>添加标签</ThemedText>
+                <TouchableOpacity onPress={() => setShowTagModal(false)}>
+                  <FontAwesome6 name="xmark" size={20} color={theme.textMuted} />
+                </TouchableOpacity>
+              </View>
+              
+              <View style={styles.modalBody}>
+                {/* 自定义标签输入 */}
+                <View style={styles.inputGroup}>
+                  <ThemedText variant="labelTitle" color={theme.textMuted}>自定义标签</ThemedText>
+                  <View style={styles.customTagInput}>
+                    <TextInput
+                      style={styles.modalInput}
+                      placeholder="输入标签名称..."
+                      placeholderTextColor={theme.textMuted}
+                      value={newTagName}
+                      onChangeText={setNewTagName}
+                    />
+                    <TouchableOpacity 
+                      style={[styles.addTagSubmitButton, (!newTagName.trim() || addingTag) && styles.addTagSubmitButtonDisabled]}
+                      onPress={() => handleAddTag()}
+                      disabled={!newTagName.trim() || addingTag}
+                    >
+                      {addingTag ? (
+                        <ActivityIndicator size="small" color={theme.buttonPrimaryText} />
+                      ) : (
+                        <FontAwesome6 name="plus" size={16} color={theme.buttonPrimaryText} />
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                </View>
+                
+                {/* 预设标签 */}
+                <View style={styles.inputGroup}>
+                  <ThemedText variant="labelTitle" color={theme.textMuted}>快捷标签</ThemedText>
+                  <View style={styles.presetTagsGrid}>
+                    {tagSuggestions.map((tag, index) => (
+                      <TouchableOpacity
+                        key={index}
+                        style={styles.presetTagButton}
+                        onPress={() => handleAddTag(tag.name)}
+                      >
+                        <ThemedText variant="small" color={theme.primary}>{tag.name}</ThemedText>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
               </View>
             </Pressable>
           </Pressable>

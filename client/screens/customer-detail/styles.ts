@@ -87,10 +87,55 @@ export const createStyles = (theme: Theme) => {
     customerInfo: {
       flex: 1,
     },
+    tagsSection: {
+      marginTop: Spacing.lg,
+    },
+    tagsHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: Spacing.xs,
+      marginBottom: Spacing.sm,
+    },
+    addTagButton: {
+      width: 24,
+      height: 24,
+      borderRadius: 12,
+      backgroundColor: theme.backgroundTertiary,
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginLeft: 'auto',
+    },
     tagsContainer: {
       flexDirection: 'row',
       flexWrap: 'wrap',
-      gap: Spacing.md,
+      gap: Spacing.sm,
+    },
+    tagItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: theme.backgroundTertiary,
+      paddingHorizontal: Spacing.md,
+      paddingVertical: Spacing.xs,
+      borderRadius: BorderRadius.full,
+      gap: Spacing.xs,
+    },
+    tagDeleteButton: {
+      width: 16,
+      height: 16,
+      borderRadius: 8,
+      backgroundColor: theme.backgroundDefault,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    addFirstTagButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: Spacing.xs,
+      paddingVertical: Spacing.sm,
+      paddingHorizontal: Spacing.md,
+      borderRadius: BorderRadius.md,
+      backgroundColor: theme.backgroundTertiary,
+      alignSelf: 'flex-start',
     },
     lastFollowUpContainer: {
       flexDirection: 'row',
@@ -453,6 +498,34 @@ export const createStyles = (theme: Theme) => {
     },
     modalSubmitButtonDisabled: {
       backgroundColor: theme.textMuted,
+    },
+    customTagInput: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: Spacing.sm,
+    },
+    addTagSubmitButton: {
+      width: 44,
+      height: 44,
+      borderRadius: BorderRadius.md,
+      backgroundColor: theme.primary,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    addTagSubmitButtonDisabled: {
+      opacity: 0.5,
+    },
+    presetTagsGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: Spacing.sm,
+      marginTop: Spacing.sm,
+    },
+    presetTagButton: {
+      backgroundColor: theme.backgroundTertiary,
+      paddingHorizontal: Spacing.lg,
+      paddingVertical: Spacing.md,
+      borderRadius: BorderRadius.full,
     },
   });
 };
