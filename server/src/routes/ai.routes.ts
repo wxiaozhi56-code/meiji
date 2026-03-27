@@ -6,55 +6,10 @@ import { Config, LLMClient, HeaderUtils } from 'coze-coding-dev-sdk';
 
 const router = Router();
 
-/**
- * 获取客户分析报告
- * GET /api/v1/analysis/:customerId
- */
-router.get('/:customerId', authenticate, enforceDataIsolation, requireBeautician, async (req, res) => {
-  try {
-    const client = getSupabaseClient();
-    const { customerId } = req.params;
-    const { storeId, userId, role } = req.user!;
-
-    // 验证客户权限
-    let customerQuery = client
-      .from('customers')
-      .select('id')
-      .eq('id', parseInt(customerId));
-
-    // 数据隔离
-    if (role === UserRole.BEAUTICIAN) {
-      customerQuery = customerQuery.eq('responsible_user_id', userId);
-    } else {
-      customerQuery = customerQuery.eq('store_id', storeId);
-    }
-
-    const { data: existingCustomer } = await customerQuery.maybeSingle();
-
-    if (!existingCustomer) {
-      return res.status(404).json({ success: false, error: '客户不存在或无权访问' });
-    }
-
-    // 获取最新的分析报告
-    const { data: report, error } = await client
-      .from('customer_analysis_reports')
-      .select('*')
-      .eq('customer_id', customerId)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    if (error) throw error;
-
-    res.json({
-      success: true,
-      report,
-    });
-  } catch (error: any) {
-    console.error('Error fetching analysis:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
+// ============================================================
+// ⚠️ 重要：静态路由必须在动态路由 /:customerId 之前定义！
+// 否则 "generate" 会被当作 customerId 处理
+// ============================================================
 
 /**
  * 生成客户深度分析报告
@@ -449,6 +404,58 @@ ${customContext ? `## 额外要求\n${customContext}` : ''}
     })));
   } catch (error: any) {
     console.error('Error generating messages:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * 获取客户分析报告
+ * GET /api/v1/analysis/:customerId
+ * 
+ * ⚠️ 注意：此动态路由必须放在所有静态路由之后
+ */
+router.get('/:customerId', authenticate, enforceDataIsolation, requireBeautician, async (req, res) => {
+  try {
+    const client = getSupabaseClient();
+    const { customerId } = req.params;
+    const { storeId, userId, role } = req.user!;
+
+    // 验证客户权限
+    let customerQuery = client
+      .from('customers')
+      .select('id')
+      .eq('id', parseInt(customerId));
+
+    // 数据隔离
+    if (role === UserRole.BEAUTICIAN) {
+      customerQuery = customerQuery.eq('responsible_user_id', userId);
+    } else {
+      customerQuery = customerQuery.eq('store_id', storeId);
+    }
+
+    const { data: existingCustomer } = await customerQuery.maybeSingle();
+
+    if (!existingCustomer) {
+      return res.status(404).json({ success: false, error: '客户不存在或无权访问' });
+    }
+
+    // 获取最新的分析报告
+    const { data: report, error } = await client
+      .from('customer_analysis_reports')
+      .select('*')
+      .eq('customer_id', customerId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error) throw error;
+
+    res.json({
+      success: true,
+      report,
+    });
+  } catch (error: any) {
+    console.error('Error fetching analysis:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
