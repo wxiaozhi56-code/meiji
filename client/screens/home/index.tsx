@@ -248,10 +248,22 @@ export default function HomeScreen() {
                 </ThemedText>
               </View>
             </View>
-            <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-              <FontAwesome6 name="right-from-bracket" size={18} color={theme.textMuted} />
-              <ThemedText variant="small" color={theme.textMuted}>退出</ThemedText>
-            </TouchableOpacity>
+            <View style={styles.headerActions}>
+              {/* 员工管理入口 - 只有老板可见 */}
+              {user?.role === 'store_owner' && (
+                <TouchableOpacity 
+                  style={styles.employeeButton} 
+                  onPress={() => router.push('/employee-management')}
+                >
+                  <FontAwesome6 name="users-gear" size={18} color={theme.primary} />
+                  <ThemedText variant="small" color={theme.primary}>员工</ThemedText>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+                <FontAwesome6 name="right-from-bracket" size={18} color={theme.textMuted} />
+                <ThemedText variant="small" color={theme.textMuted}>退出</ThemedText>
+              </TouchableOpacity>
+            </View>
           </View>
 
           <View style={styles.headerTop}>
