@@ -12,6 +12,35 @@ export const createStyles = (theme: Theme) => {
       paddingBottom: Spacing.xl,
       backgroundColor: theme.backgroundRoot,
     },
+    // 用户信息行
+    userInfoRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: Spacing.xl,
+    },
+    userInfo: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: Spacing.md,
+    },
+    userAvatar: {
+      width: 44,
+      height: 44,
+      borderRadius: BorderRadius.full,
+      backgroundColor: theme.backgroundTertiary,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    logoutButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: Spacing.xs,
+      paddingHorizontal: Spacing.md,
+      paddingVertical: Spacing.sm,
+      borderRadius: BorderRadius.md,
+      backgroundColor: theme.backgroundTertiary,
+    },
     headerTop: {
       flexDirection: 'row',
       justifyContent: 'space-between',

@@ -6,6 +6,8 @@ import {
   TextInput,
   Image,
   RefreshControl,
+  Alert,
+  Platform,
 } from 'react-native';
 import { FontAwesome6 } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
@@ -18,6 +20,33 @@ import { ThemedView } from '@/components/ThemedView';
 import { createStyles } from './styles';
 
 const EXPO_PUBLIC_BACKEND_BASE_URL = process.env.EXPO_PUBLIC_BACKEND_BASE_URL;
+
+// 跨平台提示函数
+const showAlert = (title: string, message: string, buttons?: { text: string; style?: string; onPress?: () => void }[]) => {
+  if (Platform.OS === 'web') {
+    if (buttons && buttons.length > 1) {
+      // 确认对话框
+      if (window.confirm(`${title}\n${message}`)) {
+        buttons[1].onPress?.();
+      }
+    } else {
+      window.alert(`${title}\n${message}`);
+      if (buttons && buttons.length > 0 && buttons[0].onPress) {
+        buttons[0].onPress();
+      }
+    }
+  } else {
+    Alert.alert(title, message, buttons as any);
+  }
+};
+
+// 角色名称映射
+const ROLE_NAMES: Record<string, string> = {
+  super_admin: '超级管理员',
+  store_owner: '门店老板',
+  store_manager: '门店店长',
+  beautician: '美容师',
+};
 
 interface Customer {
   id: number;
@@ -32,7 +61,7 @@ export default function HomeScreen() {
   const { theme, isDark } = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const router = useSafeRouter();
-  const { token, isAuthenticated, isLoading: authLoading } = useAuth();
+  const { token, isAuthenticated, isLoading: authLoading, user, logout } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -107,6 +136,24 @@ export default function HomeScreen() {
 
   const handleAddCustomer = () => {
     router.push('/add-customer');
+  };
+
+  const handleLogout = () => {
+    showAlert(
+      '退出登录',
+      '确定要退出登录吗？',
+      [
+        { text: '取消', style: 'cancel' },
+        { 
+          text: '确定', 
+          style: 'destructive',
+          onPress: async () => {
+            await logout();
+            router.replace('/login');
+          }
+        }
+      ]
+    );
   };
 
   const filteredCustomers = useMemo(() => {
@@ -184,6 +231,29 @@ export default function HomeScreen() {
       <ThemedView level="root" style={styles.container}>
         {/* Header */}
         <View style={styles.header}>
+          {/* 用户信息行 */}
+          <View style={styles.userInfoRow}>
+            <View style={styles.userInfo}>
+              <View style={styles.userAvatar}>
+                <ThemedText variant="h4" color={theme.primary}>
+                  {user?.name?.charAt(0) || '?'}
+                </ThemedText>
+              </View>
+              <View>
+                <ThemedText variant="title" color={theme.textPrimary}>
+                  {user?.name || '用户'}
+                </ThemedText>
+                <ThemedText variant="caption" color={theme.textMuted}>
+                  {ROLE_NAMES[user?.role || ''] || user?.role}
+                </ThemedText>
+              </View>
+            </View>
+            <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+              <FontAwesome6 name="right-from-bracket" size={18} color={theme.textMuted} />
+              <ThemedText variant="small" color={theme.textMuted}>退出</ThemedText>
+            </TouchableOpacity>
+          </View>
+
           <View style={styles.headerTop}>
             <View>
               <ThemedText variant="captionMedium" color={theme.textMuted}>
