@@ -11,9 +11,9 @@ import {
 } from 'react-native';
 import { FontAwesome5, FontAwesome6 } from '@expo/vector-icons';
 import Toast from 'react-native-toast-message';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeRouter, useSafeSearchParams } from '@/hooks/useSafeRouter';
 import { useTheme } from '@/hooks/useTheme';
+import { useAuth } from '@/contexts/AuthContext';
 import { Screen } from '@/components/Screen';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
@@ -44,6 +44,7 @@ export default function CustomerDetailScreen() {
   const styles = useMemo(() => createStyles(theme), [theme]);
   const router = useSafeRouter();
   const params = useSafeSearchParams<{ id: number }>();
+  const { token } = useAuth();
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
@@ -61,14 +62,8 @@ export default function CustomerDetailScreen() {
   }, [params.id]);
 
   const fetchCustomer = async () => {
-    if (!params.id) return;
+    if (!params.id || !token) return;
     try {
-      const token = await AsyncStorage.getItem('auth_token');
-      if (!token) {
-        router.replace('/login');
-        return;
-      }
-
       const response = await fetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/customers/${params.id}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -94,13 +89,9 @@ export default function CustomerDetailScreen() {
 
   // 删除跟进记录
   const handleDeleteFollowUpRecord = async (recordId: number) => {
+    if (!token) return;
+    
     try {
-      const token = await AsyncStorage.getItem('auth_token');
-      if (!token) {
-        router.replace('/login');
-        return;
-      }
-
       /**
        * 服务端文件：server/src/index.ts
        * 接口：DELETE /api/v1/follow-up-records/:id
@@ -147,7 +138,7 @@ export default function CustomerDetailScreen() {
   };
 
   const handleSaveProfile = async () => {
-    if (!customer || !profileFieldName.trim()) {
+    if (!customer || !profileFieldName.trim() || !token) {
       Toast.show({
         type: 'error',
         text1: '请填写字段名称',
@@ -157,12 +148,6 @@ export default function CustomerDetailScreen() {
 
     setSavingProfile(true);
     try {
-      const token = await AsyncStorage.getItem('auth_token');
-      if (!token) {
-        router.replace('/login');
-        return;
-      }
-
       /**
        * 服务端文件：server/src/index.ts
        * 接口：POST /api/v1/customer-profiles
@@ -204,13 +189,9 @@ export default function CustomerDetailScreen() {
   };
 
   const handleDeleteProfile = async (profileId: number) => {
+    if (!token) return;
+    
     try {
-      const token = await AsyncStorage.getItem('auth_token');
-      if (!token) {
-        router.replace('/login');
-        return;
-      }
-
       const response = await fetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/customer-profiles/${profileId}`, {
         method: 'DELETE',
         headers: {
@@ -238,16 +219,10 @@ export default function CustomerDetailScreen() {
   };
 
   const confirmDelete = async () => {
-    if (!customer) return;
+    if (!customer || !token) return;
     setShowDeleteModal(false);
     setDeleting(true);
     try {
-      const token = await AsyncStorage.getItem('auth_token');
-      if (!token) {
-        router.replace('/login');
-        return;
-      }
-
       const response = await fetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/customers/${customer.id}`, {
         method: 'DELETE',
         headers: {

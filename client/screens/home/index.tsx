@@ -9,9 +9,9 @@ import {
 } from 'react-native';
 import { FontAwesome6 } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeRouter } from '@/hooks/useSafeRouter';
 import { useTheme } from '@/hooks/useTheme';
+import { useAuth } from '@/contexts/AuthContext';
 import { Screen } from '@/components/Screen';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
@@ -32,22 +32,25 @@ export default function HomeScreen() {
   const { theme, isDark } = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const router = useSafeRouter();
+  const { token, isAuthenticated, isLoading: authLoading } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const fetchCustomers = useCallback(async () => {
-    try {
-      // 从 AsyncStorage 获取 token
-      const token = await AsyncStorage.getItem('auth_token');
-      
-      if (!token) {
-        console.log('No auth token found, redirecting to login');
+  // 检查认证状态
+  useFocusEffect(
+    useCallback(() => {
+      if (!authLoading && !isAuthenticated) {
         router.replace('/login');
-        return;
       }
+    }, [authLoading, isAuthenticated, router])
+  );
 
+  const fetchCustomers = useCallback(async () => {
+    if (!token) return;
+    
+    try {
       /**
        * 服务端文件：server/src/routes/customer.routes.ts
        * 接口：GET /api/v1/customers
@@ -74,12 +77,22 @@ export default function HomeScreen() {
     } finally {
       setLoading(false);
     }
-  }, [router]);
+  }, [token]);
 
   useFocusEffect(
     useCallback(() => {
+      // 等待认证状态加载完成
+      if (authLoading) return;
+      
+      // 未登录则跳转到登录页
+      if (!isAuthenticated) {
+        router.replace('/login');
+        return;
+      }
+      
+      // 已登录则获取客户数据
       fetchCustomers();
-    }, [fetchCustomers])
+    }, [authLoading, isAuthenticated, router, fetchCustomers])
   );
 
   const handleRefresh = async () => {

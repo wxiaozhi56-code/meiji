@@ -12,6 +12,7 @@ import { FontAwesome6 } from '@expo/vector-icons';
 import Toast from 'react-native-toast-message';
 import { useSafeRouter } from '@/hooks/useSafeRouter';
 import { useTheme } from '@/hooks/useTheme';
+import { useAuth } from '@/contexts/AuthContext';
 import { Screen } from '@/components/Screen';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
@@ -23,6 +24,7 @@ export default function LoginScreen() {
   const { theme, isDark } = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const router = useSafeRouter();
+  const { login } = useAuth();
 
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
@@ -68,8 +70,9 @@ export default function LoginScreen() {
         throw new Error(data.error || '登录失败');
       }
 
-      // TODO: 保存token到本地存储
-      // 对于测试，我们暂时使用alert显示成功
+      // 使用 AuthContext 保存登录状态
+      await login(data.data.token, data.data.user);
+
       Toast.show({
         type: 'success',
         text1: '登录成功',

@@ -9,9 +9,9 @@ import {
   Platform,
 } from 'react-native';
 import { FontAwesome6 } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeRouter } from '@/hooks/useSafeRouter';
 import { useTheme } from '@/hooks/useTheme';
+import { useAuth } from '@/contexts/AuthContext';
 import { Screen } from '@/components/Screen';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
@@ -37,6 +37,7 @@ export default function AddCustomerScreen() {
   const { theme, isDark } = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const router = useSafeRouter();
+  const { token } = useAuth();
 
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
@@ -66,17 +67,14 @@ export default function AddCustomerScreen() {
       return;
     }
 
+    if (!token) {
+      Alert.alert('提示', '请先登录');
+      router.replace('/login');
+      return;
+    }
+
     setLoading(true);
     try {
-      // 从 AsyncStorage 获取 token
-      const token = await AsyncStorage.getItem('auth_token');
-      
-      if (!token) {
-        Alert.alert('提示', '请先登录');
-        router.replace('/login');
-        return;
-      }
-
       // 组合备注内容：标签 + 用户输入的备注
       const tagString = selectedTags.map((t) => `#${t}`).join(' ');
       const fullNotes = tagString

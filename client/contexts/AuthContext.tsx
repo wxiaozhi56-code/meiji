@@ -1,48 +1,106 @@
-// @ts-nocheck
 /**
- * 通用认证上下文
- *
- * 基于固定的 API 接口实现，可复用到其他项目
- * 其他项目使用时，只需修改 @api 的导入路径指向项目的 api 模块
- *
- * 注意：
- * - 如果需要登录/鉴权场景，请扩展本文件，完善 login/logout、token 管理、用户信息获取与刷新等逻辑
- * - 将示例中的占位实现替换为项目实际的接口调用与状态管理
+ * 认证上下文
+ * 
+ * 提供全局认证状态管理：
+ * - 用户信息
+ * - Token 管理
+ * - 登录/登出功能
  */
-import React, { createContext, useContext, ReactNode } from "react";
+import React, { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
-interface UserOut {
-
+interface User {
+  id: number;
+  phone: string;
+  name: string;
+  role: string;
+  storeId: number;
+  storeName?: string;
 }
 
 interface AuthContextType {
-  user: UserOut | null;
+  user: User | null;
   token: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (token: string) => Promise<void>;
+  login: (token: string, user: User) => Promise<void>;
   logout: () => Promise<void>;
-  updateUser: (userData: Partial<UserOut>) => void;
+  updateUser: (userData: Partial<User>) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const value: AuthContextType = {
-    user: null,
-    token: null,
-    isAuthenticated: false,
-    isLoading: false,
+  const [user, setUser] = useState<User | null>(null);
+  const [token, setToken] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-    // 登录逻辑，根据项目实际情况实现
-    login: async (token: string) => {}, // eslint-disable-line @typescript-eslint/no-empty-function
+  // 初始化时从 AsyncStorage 读取认证信息
+  useEffect(() => {
+    const loadAuthState = async () => {
+      try {
+        const savedToken = await AsyncStorage.getItem('auth_token');
+        const savedUser = await AsyncStorage.getItem('user_info');
+        
+        if (savedToken && savedUser) {
+          setToken(savedToken);
+          setUser(JSON.parse(savedUser));
+        }
+      } catch (error) {
+        console.error('Failed to load auth state:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
 
-    // 登出逻辑，根据项目实际情况实现
-    logout: async () => {}, // eslint-disable-line @typescript-eslint/no-empty-function
+    loadAuthState();
+  }, []);
 
-    // 更新用户信息，根据项目实际情况实现
-    updateUser: () => {}, // eslint-disable-line @typescript-eslint/no-empty-function
+  // 登录：保存 token 和用户信息
+  const login = async (newToken: string, userData: User) => {
+    try {
+      await AsyncStorage.setItem('auth_token', newToken);
+      await AsyncStorage.setItem('user_info', JSON.stringify(userData));
+      setToken(newToken);
+      setUser(userData);
+    } catch (error) {
+      console.error('Failed to save auth state:', error);
+      throw error;
+    }
   };
+
+  // 登出：清除 token 和用户信息
+  const logout = async () => {
+    try {
+      await AsyncStorage.removeItem('auth_token');
+      await AsyncStorage.removeItem('user_info');
+      setToken(null);
+      setUser(null);
+    } catch (error) {
+      console.error('Failed to clear auth state:', error);
+      throw error;
+    }
+  };
+
+  // 更新用户信息
+  const updateUser = (userData: Partial<User>) => {
+    if (user) {
+      const updatedUser = { ...user, ...userData };
+      setUser(updatedUser);
+      AsyncStorage.setItem('user_info', JSON.stringify(updatedUser)).catch(console.error);
+    }
+  };
+
+  const value: AuthContextType = {
+    user,
+    token,
+    isAuthenticated: !!token && !!user,
+    isLoading,
+    login,
+    logout,
+    updateUser,
+  };
+
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
