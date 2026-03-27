@@ -18,6 +18,20 @@ import { createStyles } from './styles';
 
 const EXPO_PUBLIC_BACKEND_BASE_URL = process.env.EXPO_PUBLIC_BACKEND_BASE_URL;
 
+// 预设标签列表
+const PRESET_TAGS = [
+  '新客户',
+  'VIP客户',
+  '抗衰需求',
+  '补水项目',
+  '敏感肌',
+  '背部疼痛',
+  '失眠',
+  '常客',
+  '沉睡客户',
+  '到期提醒',
+];
+
 export default function AddCustomerScreen() {
   const { theme, isDark } = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
@@ -26,7 +40,24 @@ export default function AddCustomerScreen() {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [notes, setNotes] = useState('');
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
+
+  // 切换标签选中状态
+  const toggleTag = (tag: string) => {
+    setSelectedTags((prev) => {
+      if (prev.includes(tag)) {
+        return prev.filter((t) => t !== tag);
+      } else {
+        return [...prev, tag];
+      }
+    });
+  };
+
+  // 删除已选标签
+  const removeTag = (tag: string) => {
+    setSelectedTags((prev) => prev.filter((t) => t !== tag));
+  };
 
   const handleSave = async () => {
     if (!name.trim()) {
@@ -36,6 +67,14 @@ export default function AddCustomerScreen() {
 
     setLoading(true);
     try {
+      // 组合备注内容：标签 + 用户输入的备注
+      const tagString = selectedTags.map((t) => `#${t}`).join(' ');
+      const fullNotes = tagString
+        ? notes.trim()
+          ? `${tagString} ${notes.trim()}`
+          : tagString
+        : notes.trim();
+
       /**
        * 服务端文件：server/src/index.ts
        * 接口：POST /api/v1/customers
@@ -44,7 +83,11 @@ export default function AddCustomerScreen() {
       const response = await fetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/customers`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name.trim(), phone: phone.trim(), notes: notes.trim() }),
+        body: JSON.stringify({ 
+          name: name.trim(), 
+          phone: phone.trim(), 
+          notes: fullNotes 
+        }),
       });
 
       const data = await response.json();
@@ -118,6 +161,63 @@ export default function AddCustomerScreen() {
               />
             </View>
 
+            {/* Quick Tags Section */}
+            <View style={styles.section}>
+              <ThemedText variant="labelTitle" color={theme.textMuted}>
+                快速标签（点击添加/取消）
+              </ThemedText>
+              <View style={styles.quickTagsContainer}>
+                {PRESET_TAGS.map((tag) => {
+                  const isSelected = selectedTags.includes(tag);
+                  return (
+                    <TouchableOpacity
+                      key={tag}
+                      style={[
+                        styles.quickTag,
+                        isSelected && styles.quickTagSelected,
+                      ]}
+                      onPress={() => toggleTag(tag)}
+                    >
+                      <ThemedText
+                        variant="small"
+                        color={isSelected ? theme.buttonPrimaryText : theme.primary}
+                      >
+                        #{tag}
+                      </ThemedText>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+
+            {/* Selected Tags Display */}
+            {selectedTags.length > 0 && (
+              <View style={styles.section}>
+                <ThemedText variant="labelTitle" color={theme.textMuted}>
+                  已选标签（点击删除）
+                </ThemedText>
+                <View style={styles.selectedTagsContainer}>
+                  {selectedTags.map((tag) => (
+                    <TouchableOpacity
+                      key={tag}
+                      style={styles.selectedTag}
+                      onPress={() => removeTag(tag)}
+                    >
+                      <ThemedText variant="small" color={theme.buttonPrimaryText}>
+                        #{tag}
+                      </ThemedText>
+                      <FontAwesome6
+                        name="xmark"
+                        size={12}
+                        color={theme.buttonPrimaryText}
+                        style={{ marginLeft: 4 }}
+                      />
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            )}
+
             {/* Notes Input */}
             <View style={styles.inputGroup}>
               <ThemedText variant="labelTitle" color={theme.textMuted}>
@@ -134,26 +234,6 @@ export default function AddCustomerScreen() {
                 textAlignVertical="top"
                 maxLength={500}
               />
-            </View>
-
-            {/* Quick Tags */}
-            <View style={styles.section}>
-              <ThemedText variant="labelTitle" color={theme.textMuted}>
-                快速标签（点击添加到备注）
-              </ThemedText>
-              <View style={styles.quickTagsContainer}>
-                {['新客户', '抗衰需求', '补水项目', '敏感肌', '常客'].map((tag) => (
-                  <TouchableOpacity
-                    key={tag}
-                    style={styles.quickTag}
-                    onPress={() => setNotes((prev) => (prev ? `${prev} #${tag}` : `#${tag}`))}
-                  >
-                    <ThemedText variant="small" color={theme.primary}>
-                      #{tag}
-                    </ThemedText>
-                  </TouchableOpacity>
-                ))}
-              </View>
             </View>
           </ScrollView>
 

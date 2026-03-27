@@ -65,6 +65,24 @@ export const createStyles = (theme: Theme) => {
       borderWidth: 1,
       borderColor: theme.border,
     },
+    quickTagSelected: {
+      backgroundColor: theme.primary,
+      borderColor: theme.primary,
+    },
+    selectedTagsContainer: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: Spacing.md,
+      marginTop: Spacing.md,
+    },
+    selectedTag: {
+      backgroundColor: theme.primary,
+      paddingHorizontal: Spacing.lg,
+      paddingVertical: Spacing.md,
+      borderRadius: BorderRadius.full,
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
     bottomBar: {
       paddingHorizontal: Spacing['2xl'],
       paddingVertical: Spacing.xl,
