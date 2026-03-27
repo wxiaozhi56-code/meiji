@@ -76,6 +76,36 @@ export default function CustomerDetailScreen() {
     setShowDeleteModal(true);
   };
 
+  // 删除跟进记录
+  const handleDeleteFollowUpRecord = async (recordId: number) => {
+    try {
+      /**
+       * 服务端文件：server/src/index.ts
+       * 接口：DELETE /api/v1/follow-up-records/:id
+       */
+      const response = await fetch(`${EXPO_PUBLIC_BACKEND_BASE_URL}/api/v1/follow-up-records/${recordId}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        throw new Error('删除失败');
+      }
+
+      Toast.show({
+        type: 'success',
+        text1: '跟进记录已删除',
+      });
+
+      fetchCustomer(); // 刷新数据
+    } catch (error: any) {
+      Toast.show({
+        type: 'error',
+        text1: '删除失败',
+        text2: error.message || '请重试',
+      });
+    }
+  };
+
   // 添加/编辑资料
   const handleAddProfile = () => {
     setEditingProfile(null);
@@ -475,15 +505,23 @@ export default function CustomerDetailScreen() {
                       <ThemedText variant="caption" color={theme.textMuted}>
                         {record.created_at?.split('T')[0]}
                       </ThemedText>
-                      <TouchableOpacity
-                        style={styles.generateButtonSmall}
-                        onPress={() => handleGenerateMessages(record.id)}
-                      >
-                        <FontAwesome6 name="wand-magic-sparkles" size={12} color={theme.buttonPrimaryText} />
-                        <ThemedText variant="tiny" color={theme.buttonPrimaryText}>
-                          生成话术
-                        </ThemedText>
-                      </TouchableOpacity>
+                      <View style={styles.historyActions}>
+                        <TouchableOpacity
+                          style={styles.generateButtonSmall}
+                          onPress={() => handleGenerateMessages(record.id)}
+                        >
+                          <FontAwesome6 name="wand-magic-sparkles" size={12} color={theme.buttonPrimaryText} />
+                          <ThemedText variant="tiny" color={theme.buttonPrimaryText}>
+                            生成话术
+                          </ThemedText>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={styles.deleteRecordButton}
+                          onPress={() => handleDeleteFollowUpRecord(record.id)}
+                        >
+                          <FontAwesome6 name="trash" size={14} color={theme.error} />
+                        </TouchableOpacity>
+                      </View>
                     </View>
                     <ThemedText variant="small" color={theme.textSecondary}>
                       {record.content}

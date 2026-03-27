@@ -306,6 +306,30 @@ app.delete('/api/v1/customer-profiles/:id', async (req, res) => {
   }
 });
 
+// Delete follow-up record by ID
+app.delete('/api/v1/follow-up-records/:id', async (req, res) => {
+  try {
+    const client = getSupabaseClient();
+    const { id } = req.params;
+
+    // 先删除关联的话术和AI简报
+    await client.from('generated_messages').delete().eq('follow_up_record_id', id);
+    await client.from('ai_briefs').delete().eq('follow_up_record_id', id);
+    
+    // 再删除跟进记录
+    const { error } = await client
+      .from('follow_up_records')
+      .delete()
+      .eq('id', id);
+
+    if (error) throw error;
+    res.json({ success: true, message: '跟进记录已删除' });
+  } catch (error: any) {
+    console.error('Error deleting follow-up record:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Delete customer by ID
 app.delete('/api/v1/customers/:id', async (req, res) => {
   try {

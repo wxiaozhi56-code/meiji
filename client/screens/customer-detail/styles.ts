@@ -246,6 +246,11 @@ export const createStyles = (theme: Theme) => {
       alignItems: 'center',
       marginBottom: Spacing.sm,
     },
+    historyActions: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: Spacing.sm,
+    },
     generateButtonSmall: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -254,6 +259,14 @@ export const createStyles = (theme: Theme) => {
       paddingHorizontal: Spacing.md,
       paddingVertical: 4,
       borderRadius: BorderRadius.sm,
+    },
+    deleteRecordButton: {
+      width: 32,
+      height: 32,
+      borderRadius: BorderRadius.full,
+      backgroundColor: theme.backgroundTertiary,
+      justifyContent: 'center',
+      alignItems: 'center',
     },
     relatedMessages: {
       marginTop: Spacing.md,
