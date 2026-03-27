@@ -3,6 +3,7 @@ import cors from "cors";
 import multer from "multer";
 import { getSupabaseClient } from "./storage/database/supabase-client";
 import { ASRClient, LLMClient, Config, HeaderUtils, S3Storage } from "coze-coding-dev-sdk";
+import authRoutes from "./routes/auth.routes";
 
 const app = express();
 const port = process.env.PORT || 9091;
@@ -23,6 +24,9 @@ app.get('/api/v1/health', (req, res) => {
   console.log('Health check success');
   res.status(200).json({ status: 'ok' });
 });
+
+// Auth routes
+app.use('/api/v1/auth', authRoutes);
 
 // Initialize S3 Storage
 const storage = new S3Storage({
