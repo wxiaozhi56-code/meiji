@@ -14,6 +14,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Screen } from '@/components/Screen';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
+import { Spacing } from '@/constants/theme';
 import { createStyles } from './styles';
 
 const EXPO_PUBLIC_BACKEND_BASE_URL = process.env.EXPO_PUBLIC_BACKEND_BASE_URL;
@@ -27,6 +28,9 @@ interface FollowUpPlan {
   reason: string;
   last_contact_days: number;
   urgency_level?: 'red' | 'yellow' | 'green';
+  recommended_topics?: string[];
+  communication_style?: string;
+  best_time_slot?: string;
   customers: {
     id: number;
     name: string;
@@ -342,6 +346,58 @@ export default function DashboardScreen() {
                       </ThemedText>
                     </View>
                   </View>
+
+                  {/* AI智能建议区域 */}
+                  {(plan.recommended_topics || plan.communication_style || plan.best_time_slot) && (
+                    <View style={styles.aiSuggestionSection}>
+                      <View style={styles.aiSuggestionHeader}>
+                        <View style={styles.aiSuggestionIcon}>
+                          <FontAwesome6 name="robot" size={10} color={theme.primary} />
+                        </View>
+                        <ThemedText variant="smallMedium" color={theme.primary}>
+                          AI 智能建议
+                        </ThemedText>
+                      </View>
+                      
+                      {/* 推荐话题 */}
+                      {plan.recommended_topics && plan.recommended_topics.length > 0 && (
+                        <View style={{ marginBottom: Spacing.xs }}>
+                          <ThemedText variant="caption" color={theme.textMuted} style={{ marginBottom: 4 }}>
+                            推荐话题：
+                          </ThemedText>
+                          <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+                            {plan.recommended_topics.map((topic, index) => (
+                              <View key={index} style={styles.topicTag}>
+                                <ThemedText variant="tiny" color={theme.buttonPrimaryText}>
+                                  {topic}
+                                </ThemedText>
+                              </View>
+                            ))}
+                          </View>
+                        </View>
+                      )}
+                      
+                      {/* 沟通风格 */}
+                      {plan.communication_style && (
+                        <View style={styles.aiSuggestionItem}>
+                          <FontAwesome5 name="comments" size={12} color={theme.textSecondary} />
+                          <ThemedText variant="small" color={theme.textSecondary}>
+                            沟通风格：{plan.communication_style}
+                          </ThemedText>
+                        </View>
+                      )}
+                      
+                      {/* 最佳时间段 */}
+                      {plan.best_time_slot && (
+                        <View style={styles.aiSuggestionItem}>
+                          <FontAwesome5 name="clock" size={12} color={theme.textSecondary} />
+                          <ThemedText variant="small" color={theme.textSecondary}>
+                            最佳联系时间：{plan.best_time_slot}
+                          </ThemedText>
+                        </View>
+                      )}
+                    </View>
+                  )}
 
                   {plan.customers.customer_tags && plan.customers.customer_tags.length > 0 && (
                     <View style={styles.planTags}>

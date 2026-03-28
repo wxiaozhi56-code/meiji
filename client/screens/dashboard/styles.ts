@@ -158,5 +158,41 @@ export const createStyles = (theme: Theme) => {
       borderRadius: BorderRadius.sm,
       backgroundColor: theme.backgroundTertiary,
     },
+    aiSuggestionSection: {
+      marginTop: Spacing.md,
+      paddingTop: Spacing.md,
+      borderTopWidth: 1,
+      borderTopColor: theme.borderLight,
+    },
+    aiSuggestionHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: Spacing.sm,
+      marginBottom: Spacing.sm,
+    },
+    aiSuggestionItem: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: Spacing.sm,
+      marginBottom: Spacing.xs,
+    },
+    aiSuggestionIcon: {
+      width: 20,
+      height: 20,
+      borderRadius: 10,
+      backgroundColor: theme.primary,
+      opacity: 0.1,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    topicTag: {
+      paddingVertical: Spacing.xs,
+      paddingHorizontal: Spacing.sm,
+      borderRadius: BorderRadius.full,
+      backgroundColor: theme.primary,
+      opacity: 0.9,
+      marginRight: Spacing.xs,
+      marginBottom: Spacing.xs,
+    },
   });
 };

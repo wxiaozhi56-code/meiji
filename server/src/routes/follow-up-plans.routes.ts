@@ -2,93 +2,232 @@ import { Router } from 'express';
 import { getSupabaseClient } from '../storage/database/supabase-client';
 import { authenticate, enforceDataIsolation, requireBeautician } from '../middleware/auth.middleware';
 import { UserRole } from '../utils/auth.utils';
+import { Config, LLMClient, HeaderUtils } from 'coze-coding-dev-sdk';
 
 const router = Router();
 
+// ============================================================
+// 跟进提醒规则配置
+// ============================================================
+const FOLLOW_UP_RULES = {
+  // 基准提醒周期：5天
+  BASE_THRESHOLD: 5,
+  
+  // 不同客户类型的提醒周期
+  CUSTOMER_TYPE_THRESHOLD: {
+    'VIP': 3,           // VIP客户：3天
+    '新客': 3,          // 新客：3天
+    '高潜': 4,          // 高潜客户：4天
+    '沉睡': 7,          // 沉睡客户：7天（但也需要唤醒）
+    'default': 5,       // 默认：5天
+  },
+  
+  // 紧急程度阈值
+  URGENCY_THRESHOLD: {
+    red: 10,      // 超过10天：紧急（红色）
+    yellow: 7,    // 超过7天：待跟进（黄色）
+  }
+};
+
 /**
- * 计算跟进优先级的辅助函数
+ * 使用AI分析客户跟进建议
  */
-async function calculateCustomerPriority(client: any, customer: any) {
-  const now = new Date();
-  const records = customer.follow_up_records || [];
+async function analyzeCustomerWithAI(
+  llmClient: LLMClient,
+  customer: any,
+  lastContactDays: number
+): Promise<{
+  priority: number;
+  suggestedAction: string;
+  suggestedTiming: string;
+  reason: string;
+  urgencyLevel: 'red' | 'yellow' | 'green';
+  recommendedTopics: string[];
+  communicationStyle: string;
+  bestTimeSlot: string;
+}> {
   const tags = customer.customer_tags || [];
+  const profiles = customer.customer_profiles || [];
+  const followUpRecords = customer.follow_up_records || [];
   
-  // 计算最后联系天数
-  let lastContactDays = 999;
-  if (records.length > 0) {
-    const lastRecord = records[0];
-    const lastDate = new Date(lastRecord.created_at);
-    lastContactDays = Math.floor((now.getTime() - lastDate.getTime()) / (1000 * 60 * 60 * 24));
+  const prompt = `你是一位专业的美容院客户关系管理专家。请分析以下客户信息，给出最佳的跟进建议。
+
+## 客户信息
+- 姓名：${customer.name}
+- 电话：${customer.phone || '未记录'}
+- 标签：${tags.map((t: any) => t.tag_name).join('、') || '无'}
+- 客户资料：${profiles.map((p: any) => `${p.field_name}:${p.field_value}`).join('、') || '无'}
+- 最后联系：${lastContactDays === 999 ? '从未联系' : `${lastContactDays}天前`}
+- 最近跟进记录：${followUpRecords.slice(-3).map((r: any) => r.content?.substring(0, 50)).join('；') || '无'}
+
+## 跟进提醒规则
+- 基准周期：${FOLLOW_UP_RULES.BASE_THRESHOLD}天必须跟进一次
+- VIP客户：${FOLLOW_UP_RULES.CUSTOMER_TYPE_THRESHOLD['VIP']}天
+- 新客：${FOLLOW_UP_RULES.CUSTOMER_TYPE_THRESHOLD['新客']}天
+- 高潜客户：${FOLLOW_UP_RULES.CUSTOMER_TYPE_THRESHOLD['高潜']}天
+- 沉睡客户：${FOLLOW_UP_RULES.CUSTOMER_TYPE_THRESHOLD['沉睡']}天
+
+请根据以上信息，生成JSON格式的跟进建议：
+
+\`\`\`json
+{
+  "priority": 85,
+  "suggestedAction": "电话联系",
+  "suggestedTiming": "今天",
+  "reason": "该客户是VIP客户，已超过5天未联系，需要保持高频互动维护关系",
+  "urgencyLevel": "red",
+  "recommendedTopics": ["新品推荐", "会员权益", "预约提醒"],
+  "communicationStyle": "热情专业，关注客户近期状态",
+  "bestTimeSlot": "下午2-4点"
+}
+\`\`\`
+
+要求：
+1. priority: 1-100的优先级分数，分数越高越紧急
+2. suggestedAction: 建议的跟进方式（电话/微信关怀/项目推荐/活动邀约）
+3. suggestedTiming: 建议的跟进时机（今天/明天/本周内）
+4. reason: 为什么该跟进这个客户（30字以内）
+5. urgencyLevel: 紧急程度 red/yellow/green
+6. recommendedTopics: 推荐的沟通话题（2-4个）
+7. communicationStyle: 建议的沟通风格
+8. bestTimeSlot: 最佳联系时间段
+
+只返回JSON，不要其他文字。`;
+
+  try {
+    const response = await llmClient.chat({
+      messages: [{ role: 'user', content: prompt }],
+      stream: false,
+    });
+
+    const content = response.choices?.[0]?.message?.content || '';
+    
+    // 提取JSON
+    const jsonMatch = content.match(/```json\s*([\s\S]*?)\s*```/) || content.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      const jsonStr = jsonMatch[1] || jsonMatch[0];
+      const result = JSON.parse(jsonStr);
+      
+      return {
+        priority: result.priority || 50,
+        suggestedAction: result.suggestedAction || '电话',
+        suggestedTiming: result.suggestedTiming || '今天',
+        reason: result.reason || '需要跟进维护客户关系',
+        urgencyLevel: result.urgencyLevel || 'green',
+        recommendedTopics: result.recommendedTopics || [],
+        communicationStyle: result.communicationStyle || '',
+        bestTimeSlot: result.bestTimeSlot || '',
+      };
+    }
+  } catch (error) {
+    console.error('AI analysis error:', error);
   }
+
+  // 降级：使用规则引擎
+  return calculatePriorityByRules(customer, lastContactDays);
+}
+
+/**
+ * 规则引擎计算优先级（降级方案）
+ */
+function calculatePriorityByRules(
+  customer: any,
+  lastContactDays: number
+): {
+  priority: number;
+  suggestedAction: string;
+  suggestedTiming: string;
+  reason: string;
+  urgencyLevel: 'red' | 'yellow' | 'green';
+  recommendedTopics: string[];
+  communicationStyle: string;
+  bestTimeSlot: string;
+} {
+  const tags = customer.customer_tags || [];
+  const tagNames = tags.map((t: any) => t.tag_name);
   
-  // 计算基础优先级
+  // 确定客户类型和阈值
+  let threshold = FOLLOW_UP_RULES.BASE_THRESHOLD;
+  let isVIP = tagNames.includes('VIP');
+  let isNewCustomer = tagNames.some((t: string) => t.includes('新客'));
+  let isSleeping = tagNames.some((t: string) => t.includes('沉睡'));
+  let isHighPotential = tagNames.some((t: string) => t.includes('高潜'));
+  
+  if (isVIP) threshold = FOLLOW_UP_RULES.CUSTOMER_TYPE_THRESHOLD['VIP'];
+  else if (isNewCustomer) threshold = FOLLOW_UP_RULES.CUSTOMER_TYPE_THRESHOLD['新客'];
+  else if (isHighPotential) threshold = FOLLOW_UP_RULES.CUSTOMER_TYPE_THRESHOLD['高潜'];
+  else if (isSleeping) threshold = FOLLOW_UP_RULES.CUSTOMER_TYPE_THRESHOLD['沉睡'];
+  
+  // 计算优先级
   let priority = 50;
-  
-  // 生命周期阶段调整
-  const lifecycleTags = tags.filter((t: any) => t.category === '生命周期');
-  if (lifecycleTags.some((t: any) => t.tag_name.includes('新客'))) {
-    priority += 20;
-  } else if (lifecycleTags.some((t: any) => t.tag_name.includes('沉睡'))) {
-    priority += 25;
-  }
-  
-  // VIP客户加分
-  if (tags.some((t: any) => t.tag_name.includes('VIP'))) {
-    priority += 15;
-  }
-  
-  // 时间衰减
-  if (lastContactDays > 7) {
-    priority += Math.min(lastContactDays - 7, 30);
-  }
-  
-  // 确定紧急程度
   let urgencyLevel: 'red' | 'yellow' | 'green' = 'green';
-  if (lastContactDays > 3) {
+  let suggestedAction = '微信关怀';
+  let suggestedTiming = '本周内';
+  let reason = '定期跟进维护客户关系';
+  
+  const daysOverdue = lastContactDays - threshold;
+  
+  if (lastContactDays >= FOLLOW_UP_RULES.URGENCY_THRESHOLD.red) {
+    // 超过10天：紧急
     urgencyLevel = 'red';
-  } else if (lastContactDays > 2) {
-    urgencyLevel = 'yellow';
-  }
-  
-  // 建议行动
-  let suggestedAction = '电话';
-  let suggestedTiming = '今天';
-  let reason = '需要跟进维护客户关系';
-  
-  if (lastContactDays > 7) {
+    priority = 90 + (isVIP ? 10 : 0);
     suggestedAction = '电话';
     suggestedTiming = '今天';
-    reason = `超过${lastContactDays}天未联系，需要立即跟进`;
-  } else if (lastContactDays > 3) {
-    suggestedAction = '微信关怀';
+    reason = `已${lastContactDays}天未联系，需立即跟进`;
+  } else if (lastContactDays >= FOLLOW_UP_RULES.URGENCY_THRESHOLD.yellow) {
+    // 超过7天：待跟进
+    urgencyLevel = 'yellow';
+    priority = 70 + (isVIP ? 15 : 0);
+    suggestedAction = '电话';
     suggestedTiming = '今天';
-    reason = '近期未联系，建议进行关怀互动';
-  } else if (tags.some((t: any) => t.tag_name.includes('抗衰'))) {
-    suggestedAction = '项目推荐';
+    reason = `超过${lastContactDays}天未联系，建议跟进`;
+  } else if (daysOverdue >= 0) {
+    // 超过阈值但不足7天
+    urgencyLevel = 'yellow';
+    priority = 60 + (isVIP ? 20 : isNewCustomer ? 15 : 0);
+    suggestedAction = isVIP ? '电话' : '微信关怀';
+    suggestedTiming = '今天';
+    reason = `${isVIP ? 'VIP' : isNewCustomer ? '新' : ''}客户需定期维护`;
+  } else {
+    // 未超过阈值
+    urgencyLevel = 'green';
+    priority = 40;
     suggestedTiming = '本周内';
-    reason = '客户有抗衰需求，可推荐相关项目';
-  } else if (tags.some((t: any) => t.tag_name.includes('VIP'))) {
-    suggestedAction = '活动邀约';
-    suggestedTiming = '本周内';
-    reason = 'VIP客户，邀请参加门店活动';
+    reason = '保持常规跟进节奏';
   }
+  
+  // 推荐话题
+  const recommendedTopics: string[] = [];
+  if (tagNames.some((t: string) => t.includes('抗衰'))) recommendedTopics.push('抗衰项目');
+  if (tagNames.some((t: string) => t.includes('补水'))) recommendedTopics.push('补水护理');
+  if (tagNames.some((t: string) => t.includes('美白'))) recommendedTopics.push('美白方案');
+  if (isVIP) recommendedTopics.push('会员专属活动');
+  if (isNewCustomer) recommendedTopics.push('新客福利');
+  if (isSleeping) recommendedTopics.push('回归礼遇');
+  if (recommendedTopics.length === 0) recommendedTopics.push('日常关怀');
   
   return {
     priority: Math.min(priority, 100),
     suggestedAction,
     suggestedTiming,
     reason,
-    lastContactDays,
     urgencyLevel,
+    recommendedTopics: recommendedTopics.slice(0, 3),
+    communicationStyle: isVIP ? '尊贵贴心' : isNewCustomer ? '热情细致' : '亲切自然',
+    bestTimeSlot: '下午2-5点',
   };
 }
 
 /**
- * 计算客户的跟进优先级
+ * 计算客户的跟进优先级（使用AI分析）
  * POST /api/v1/follow-up-plans/calculate
  */
 router.post('/calculate', authenticate, enforceDataIsolation, requireBeautician, async (req, res) => {
   try {
+    const customHeaders = HeaderUtils.extractForwardHeaders(req.headers as Record<string, string>);
+    const config = new Config();
+    const llmClient = new LLMClient(config, customHeaders);
+    
     const client = getSupabaseClient();
     const { storeId, userId, role } = req.user!;
 
@@ -114,10 +253,31 @@ router.post('/calculate', authenticate, enforceDataIsolation, requireBeautician,
 
     if (customersError) throw customersError;
 
-    const plans = [];
+    const results = [];
+    const now = new Date();
 
     for (const customer of customers || []) {
-      const priorityData = await calculateCustomerPriority(client, customer);
+      // 计算最后联系天数
+      const records = customer.follow_up_records || [];
+      let lastContactDays = 999;
+      
+      if (records.length > 0) {
+        // 按时间排序取最新
+        const sortedRecords = [...records].sort(
+          (a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        );
+        const lastDate = new Date(sortedRecords[0].created_at);
+        lastContactDays = Math.floor((now.getTime() - lastDate.getTime()) / (1000 * 60 * 60 * 24));
+      }
+
+      // 使用AI分析（或降级到规则引擎）
+      let analysisResult;
+      try {
+        analysisResult = await analyzeCustomerWithAI(llmClient, customer, lastContactDays);
+      } catch (aiError) {
+        console.error('AI analysis failed, using rules:', aiError);
+        analysisResult = calculatePriorityByRules(customer, lastContactDays);
+      }
 
       // Upsert跟进计划
       const { error: upsertError } = await client
@@ -125,12 +285,15 @@ router.post('/calculate', authenticate, enforceDataIsolation, requireBeautician,
         .upsert({
           customer_id: customer.id,
           store_id: storeId,
-          priority: priorityData.priority,
-          suggested_action: priorityData.suggestedAction,
-          suggested_timing: priorityData.suggestedTiming,
-          reason: priorityData.reason,
-          last_contact_days: priorityData.lastContactDays,
-          urgency_level: priorityData.urgencyLevel,
+          priority: analysisResult.priority,
+          suggested_action: analysisResult.suggestedAction,
+          suggested_timing: analysisResult.suggestedTiming,
+          reason: analysisResult.reason,
+          last_contact_days: lastContactDays,
+          urgency_level: analysisResult.urgencyLevel,
+          recommended_topics: analysisResult.recommendedTopics,
+          communication_style: analysisResult.communicationStyle,
+          best_time_slot: analysisResult.bestTimeSlot,
           calculated_at: new Date().toISOString(),
         }, {
           onConflict: 'customer_id'
@@ -139,18 +302,24 @@ router.post('/calculate', authenticate, enforceDataIsolation, requireBeautician,
       if (upsertError) {
         console.error(`Failed to upsert plan for customer ${customer.id}:`, upsertError);
       } else {
-        plans.push({
+        results.push({
           customerId: customer.id,
           customerName: customer.name,
-          ...priorityData
+          ...analysisResult,
+          lastContactDays,
         });
       }
     }
 
     res.json({ 
       success: true, 
-      message: `已计算 ${plans.length} 个客户的跟进优先级`,
-      calculatedAt: new Date().toISOString()
+      message: `已分析 ${results.length} 个客户的跟进优先级`,
+      calculatedAt: new Date().toISOString(),
+      rules: {
+        baseThreshold: FOLLOW_UP_RULES.BASE_THRESHOLD,
+        vipThreshold: FOLLOW_UP_RULES.CUSTOMER_TYPE_THRESHOLD['VIP'],
+        newCustomerThreshold: FOLLOW_UP_RULES.CUSTOMER_TYPE_THRESHOLD['新客'],
+      }
     });
   } catch (error: any) {
     console.error('Error calculating follow-up plans:', error);
@@ -237,7 +406,6 @@ router.get('/stats', authenticate, enforceDataIsolation, requireBeautician, asyn
     
     // 数据隔离
     if (role === UserRole.BEAUTICIAN) {
-      // 需要通过customer_id关联查询
       const { data: customerIds } = await client
         .from('customers')
         .select('id')
@@ -247,7 +415,6 @@ router.get('/stats', authenticate, enforceDataIsolation, requireBeautician, asyn
       if (ids.length > 0) {
         planQuery = planQuery.in('customer_id', ids);
       } else {
-        // 没有客户，返回空统计
         return res.json({
           totalCustomers: 0,
           todayPending: 0,
@@ -262,10 +429,10 @@ router.get('/stats', authenticate, enforceDataIsolation, requireBeautician, asyn
       planQuery = planQuery.eq('store_id', storeId);
     }
 
-    // 紧急待跟进（红色 - 超过3天）
+    // 紧急待跟进（红色 - 超过阈值较久）
     const { count: urgentCount } = await planQuery.eq('urgency_level', 'red');
 
-    // 今日待跟进（黄色 - 超过2天）
+    // 待跟进（黄色）
     const { count: pendingCount } = await planQuery.eq('urgency_level', 'yellow');
 
     // 正常跟进（绿色）
