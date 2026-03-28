@@ -244,6 +244,17 @@ export default function ProfileScreen() {
               </TouchableOpacity>
             )}
 
+            {/* 超级管理员：门店管理 */}
+            {user?.role === 'super_admin' && (
+              <TouchableOpacity style={styles.menuItem} onPress={() => router.push('/store-management')}>
+                <View style={styles.menuIcon}>
+                  <FontAwesome6 name="store" size={18} color={theme.primary} />
+                </View>
+                <ThemedText variant="body" color={theme.textPrimary}>门店管理</ThemedText>
+                <FontAwesome6 name="chevron-right" size={16} color={theme.textMuted} />
+              </TouchableOpacity>
+            )}
+
             {/* 修改密码 */}
             <TouchableOpacity style={styles.menuItem} onPress={() => setShowPasswordModal(true)}>
               <View style={styles.menuIcon}>

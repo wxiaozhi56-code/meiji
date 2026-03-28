@@ -37,6 +37,7 @@ export default function RootLayout() {
             <Stack.Screen name="store-settings" options={{ title: "门店设置" }} />
             <Stack.Screen name="statistics" options={{ title: "数据统计" }} />
             <Stack.Screen name="create-store-owner" options={{ title: "创建门店账号" }} />
+            <Stack.Screen name="store-management" options={{ title: "门店管理" }} />
           </Stack>
           <Toast />
         </GestureHandlerRootView>

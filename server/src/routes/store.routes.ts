@@ -1,9 +1,52 @@
 import { Router } from 'express';
 import { getSupabaseClient } from '../storage/database/supabase-client';
-import { authenticate, enforceDataIsolation, requireStoreOwner } from '../middleware/auth.middleware';
+import { authenticate, enforceDataIsolation, requireStoreOwner, requireSuperAdmin } from '../middleware/auth.middleware';
 import { hashPassword, comparePassword } from '../utils/auth.utils';
 
 const router = Router();
+
+/**
+ * 获取所有门店列表（超级管理员专用）
+ * GET /api/v1/stores/all
+ */
+router.get('/all', authenticate, requireSuperAdmin, async (req, res) => {
+  try {
+    const client = getSupabaseClient();
+
+    // 获取所有门店
+    const { data: stores, error: storesError } = await client
+      .from('stores')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (storesError) throw storesError;
+
+    // 获取所有门店老板（role = store_owner）
+    const { data: owners, error: ownersError } = await client
+      .from('users')
+      .select('id, name, phone, role, status, store_id')
+      .eq('role', 'store_owner');
+
+    if (ownersError) throw ownersError;
+
+    // 组合数据
+    const storesWithOwners = (stores || []).map(store => {
+      const owner = (owners || []).find(o => o.store_id === store.id);
+      return {
+        ...store,
+        owner: owner || null,
+      };
+    });
+
+    res.json({
+      success: true,
+      data: storesWithOwners,
+    });
+  } catch (error: any) {
+    console.error('Error fetching all stores:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
 
 /**
  * 获取门店信息
