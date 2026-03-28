@@ -11,13 +11,19 @@
       "distribution": "internal",
       "android": {
         "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_BACKEND_BASE_URL": "https://api.buyaoyang.com"
       }
     },
     "production": {
       "android": {
         "buildType": "apk"
       },
-      "ios": {}
+      "ios": {},
+      "env": {
+        "EXPO_PUBLIC_BACKEND_BASE_URL": "https://api.buyaoyang.com"
+      }
     }
   },
   "submit": {
