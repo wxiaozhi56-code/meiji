@@ -401,10 +401,7 @@ router.get('/stats', authenticate, enforceDataIsolation, requireBeautician, asyn
     // 总客户数
     const { count: totalCustomers } = await customerQuery;
 
-    // 构建跟进计划查询条件
-    let planQuery = client.from('follow_up_plans').select('id', { count: 'exact', head: true });
-    
-    // 数据隔离
+    // 数据隔离：根据角色查询跟进计划
     if (role === UserRole.BEAUTICIAN) {
       const { data: customerIds } = await client
         .from('customers')
@@ -413,7 +410,37 @@ router.get('/stats', authenticate, enforceDataIsolation, requireBeautician, asyn
       
       const ids = (customerIds || []).map(c => c.id);
       if (ids.length > 0) {
-        planQuery = planQuery.in('customer_id', ids);
+        // 紧急待跟进（红色）- 需要重新创建查询对象
+        const { count: urgentCount } = await client
+          .from('follow_up_plans')
+          .select('id', { count: 'exact', head: true })
+          .in('customer_id', ids)
+          .eq('urgency_level', 'red');
+
+        // 待跟进（黄色）- 需要重新创建查询对象
+        const { count: pendingCount } = await client
+          .from('follow_up_plans')
+          .select('id', { count: 'exact', head: true })
+          .in('customer_id', ids)
+          .eq('urgency_level', 'yellow');
+
+        // 正常跟进（绿色）- 需要重新创建查询对象
+        const { count: normalCount } = await client
+          .from('follow_up_plans')
+          .select('id', { count: 'exact', head: true })
+          .in('customer_id', ids)
+          .eq('urgency_level', 'green');
+
+        res.json({
+          totalCustomers: totalCustomers || 0,
+          todayPending: (urgentCount || 0) + (pendingCount || 0),
+          weekPending: (urgentCount || 0) + (pendingCount || 0) + (normalCount || 0),
+          highPriority: urgentCount || 0,
+          urgentCount: urgentCount || 0,
+          pendingCount: pendingCount || 0,
+          normalCount: normalCount || 0,
+        });
+        return;
       } else {
         return res.json({
           totalCustomers: 0,
@@ -426,27 +453,38 @@ router.get('/stats', authenticate, enforceDataIsolation, requireBeautician, asyn
         });
       }
     } else {
-      planQuery = planQuery.eq('store_id', storeId);
+      // 老板和店长：按 store_id 查询
+      // 紧急待跟进（红色）- 需要重新创建查询对象
+      const { count: urgentCount } = await client
+        .from('follow_up_plans')
+        .select('id', { count: 'exact', head: true })
+        .eq('store_id', storeId)
+        .eq('urgency_level', 'red');
+
+      // 待跟进（黄色）- 需要重新创建查询对象
+      const { count: pendingCount } = await client
+        .from('follow_up_plans')
+        .select('id', { count: 'exact', head: true })
+        .eq('store_id', storeId)
+        .eq('urgency_level', 'yellow');
+
+      // 正常跟进（绿色）- 需要重新创建查询对象
+      const { count: normalCount } = await client
+        .from('follow_up_plans')
+        .select('id', { count: 'exact', head: true })
+        .eq('store_id', storeId)
+        .eq('urgency_level', 'green');
+
+      res.json({
+        totalCustomers: totalCustomers || 0,
+        todayPending: (urgentCount || 0) + (pendingCount || 0),
+        weekPending: (urgentCount || 0) + (pendingCount || 0) + (normalCount || 0),
+        highPriority: urgentCount || 0,
+        urgentCount: urgentCount || 0,
+        pendingCount: pendingCount || 0,
+        normalCount: normalCount || 0,
+      });
     }
-
-    // 紧急待跟进（红色 - 超过阈值较久）
-    const { count: urgentCount } = await planQuery.eq('urgency_level', 'red');
-
-    // 待跟进（黄色）
-    const { count: pendingCount } = await planQuery.eq('urgency_level', 'yellow');
-
-    // 正常跟进（绿色）
-    const { count: normalCount } = await planQuery.eq('urgency_level', 'green');
-
-    res.json({
-      totalCustomers: totalCustomers || 0,
-      todayPending: (urgentCount || 0) + (pendingCount || 0),
-      weekPending: (urgentCount || 0) + (pendingCount || 0) + (normalCount || 0),
-      highPriority: urgentCount || 0,
-      urgentCount: urgentCount || 0,
-      pendingCount: pendingCount || 0,
-      normalCount: normalCount || 0,
-    });
   } catch (error: any) {
     console.error('Error fetching stats:', error);
     res.status(500).json({ success: false, error: error.message });
