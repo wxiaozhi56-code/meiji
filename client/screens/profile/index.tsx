@@ -233,6 +233,17 @@ export default function ProfileScreen() {
           <View style={styles.section}>
             <ThemedText variant="labelTitle" color={theme.textMuted}>设置</ThemedText>
             
+            {/* 超级管理员：创建门店账号 */}
+            {user?.role === 'super_admin' && (
+              <TouchableOpacity style={[styles.menuItem, styles.menuItemHighlight]} onPress={() => router.push('/create-store-owner')}>
+                <View style={[styles.menuIcon, { backgroundColor: theme.primary }]}>
+                  <FontAwesome6 name="plus" size={18} color={theme.buttonPrimaryText} />
+                </View>
+                <ThemedText variant="bodyMedium" color={theme.primary}>创建门店账号</ThemedText>
+                <FontAwesome6 name="chevron-right" size={16} color={theme.textMuted} />
+              </TouchableOpacity>
+            )}
+
             {/* 修改密码 */}
             <TouchableOpacity style={styles.menuItem} onPress={() => setShowPasswordModal(true)}>
               <View style={styles.menuIcon}>

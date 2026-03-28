@@ -25,7 +25,6 @@ export default function RootLayout() {
             headerShown: false
           }}>
             <Stack.Screen name="login" options={{ title: "登录" }} />
-            <Stack.Screen name="register" options={{ title: "注册" }} />
             <Stack.Screen name="index" options={{ title: "" }} />
             <Stack.Screen name="dashboard" options={{ title: "跟进仪表盘" }} />
             <Stack.Screen name="add-customer" options={{ title: "添加客户" }} />
@@ -37,6 +36,7 @@ export default function RootLayout() {
             <Stack.Screen name="profile" options={{ title: "个人中心" }} />
             <Stack.Screen name="store-settings" options={{ title: "门店设置" }} />
             <Stack.Screen name="statistics" options={{ title: "数据统计" }} />
+            <Stack.Screen name="create-store-owner" options={{ title: "创建门店账号" }} />
           </Stack>
           <Toast />
         </GestureHandlerRootView>

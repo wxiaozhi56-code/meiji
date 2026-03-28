@@ -85,6 +85,11 @@ export const createStyles = (theme: Theme) => {
       padding: Spacing.lg,
       marginTop: Spacing.sm,
     },
+    menuItemHighlight: {
+      backgroundColor: theme.primary + '10',
+      borderLeftWidth: 4,
+      borderLeftColor: theme.primary,
+    },
     menuIcon: {
       width: 40,
       height: 40,

@@ -94,10 +94,6 @@ export default function LoginScreen() {
     }
   };
 
-  const handleGoToRegister = () => {
-    router.push('/register');
-  };
-
   return (
     <Screen backgroundColor={theme.backgroundRoot} statusBarStyle={isDark ? 'light' : 'dark'}>
       <KeyboardAvoidingView
@@ -187,28 +183,6 @@ export default function LoginScreen() {
                   </ThemedText>
                 )}
               </TouchableOpacity>
-
-              {/* Register Link */}
-              <View style={styles.registerLink}>
-                <ThemedText variant="small" color={theme.textMuted}>
-                  还没有账号？
-                </ThemedText>
-                <TouchableOpacity onPress={handleGoToRegister}>
-                  <ThemedText variant="smallMedium" color={theme.primary}>
-                    立即注册
-                  </ThemedText>
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            {/* Test Account Info */}
-            <View style={styles.testInfo}>
-              <ThemedText variant="caption" color={theme.textMuted}>
-                测试账号：13800138001
-              </ThemedText>
-              <ThemedText variant="caption" color={theme.textMuted}>
-                密码：123456
-              </ThemedText>
             </View>
           </ScrollView>
         </ThemedView>

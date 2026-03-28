@@ -8,36 +8,32 @@ export const createStyles = (theme: Theme) => {
     },
     scrollContent: {
       flexGrow: 1,
-      paddingHorizontal: Spacing['2xl'],
-      paddingTop: Spacing['6xl'],
+      paddingHorizontal: Spacing.xl,
+      paddingTop: Spacing['2xl'],
       paddingBottom: Spacing['3xl'],
-      justifyContent: 'center',
     },
     header: {
-      alignItems: 'center',
-      marginBottom: Spacing['4xl'],
+      marginBottom: Spacing['2xl'],
     },
-    logoContainer: {
-      width: 80,
-      height: 80,
-      borderRadius: BorderRadius.full,
-      backgroundColor: theme.backgroundTertiary,
-      justifyContent: 'center',
-      alignItems: 'center',
+    infoCard: {
+      backgroundColor: theme.backgroundDefault,
+      borderRadius: BorderRadius.lg,
+      padding: Spacing.lg,
       marginBottom: Spacing.xl,
+      borderLeftWidth: 4,
+      borderLeftColor: theme.primary,
     },
     form: {
-      marginBottom: Spacing['3xl'],
+      gap: Spacing.lg,
     },
     inputGroup: {
-      marginBottom: Spacing.xl,
+      gap: Spacing.sm,
     },
     inputWrapper: {
       flexDirection: 'row',
       alignItems: 'center',
       backgroundColor: theme.backgroundTertiary,
       borderRadius: BorderRadius.lg,
-      marginTop: Spacing.md,
       paddingHorizontal: Spacing.lg,
     },
     inputIcon: {
@@ -52,21 +48,27 @@ export const createStyles = (theme: Theme) => {
     eyeButton: {
       padding: Spacing.sm,
     },
-    loginButton: {
+    submitButton: {
       backgroundColor: theme.primary,
       borderRadius: BorderRadius.lg,
       paddingVertical: Spacing.xl,
       alignItems: 'center',
-      marginTop: Spacing['2xl'],
-      shadowColor: theme.primary,
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.3,
-      shadowRadius: 8,
-      elevation: 8,
+      marginTop: Spacing.xl,
     },
-    loginButtonDisabled: {
+    submitButtonDisabled: {
       backgroundColor: theme.textMuted,
-      shadowColor: theme.textMuted,
+    },
+    backButton: {
+      padding: Spacing.sm,
+    },
+    navHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: Spacing.xl,
+    },
+    placeholder: {
+      width: 40,
     },
   });
 };

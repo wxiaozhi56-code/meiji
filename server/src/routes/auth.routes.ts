@@ -1,15 +1,17 @@
 import { Router } from 'express';
 import { getSupabaseClient } from '../storage/database/supabase-client';
 import { hashPassword, comparePassword, generateToken, UserRole } from '../utils/auth.utils';
-import { authenticate, requireStoreOwner } from '../middleware/auth.middleware';
+import { authenticate, requireStoreOwner, requireSuperAdmin } from '../middleware/auth.middleware';
 
 const router = Router();
 
 /**
- * 门店注册接口（门店老板自助注册）
- * POST /api/v1/auth/register/store
+ * 超级管理员创建门店老板账号
+ * POST /api/v1/auth/admin/create-store-owner
+ * 
+ * 只有超级管理员可以调用此接口
  */
-router.post('/register/store', async (req, res) => {
+router.post('/admin/create-store-owner', authenticate, requireSuperAdmin, async (req, res) => {
   try {
     const { storeName, ownerPhone, password, ownerName, address } = req.body;
 
@@ -98,29 +100,27 @@ router.post('/register/store', async (req, res) => {
       throw new Error('创建账号失败');
     }
 
-    // 生成token
-    const token = generateToken(user);
-
     res.status(201).json({
       success: true,
-      message: '注册成功',
+      message: '门店老板账号创建成功',
       data: {
+        store: {
+          id: store.id,
+          name: store.name,
+        },
         user: {
           id: user.id,
           name: user.name,
           phone: user.phone,
           role: user.role,
-          storeId: store.id,
-          storeName: store.name,
         },
-        token,
       },
     });
   } catch (error: any) {
-    console.error('Store registration error:', error);
+    console.error('Create store owner error:', error);
     res.status(500).json({ 
       success: false,
-      error: error.message || '注册失败，请重试' 
+      error: error.message || '创建失败，请重试' 
     });
   }
 });
