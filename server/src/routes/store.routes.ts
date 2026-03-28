@@ -263,15 +263,23 @@ router.get('/statistics', authenticate, enforceDataIsolation, async (req, res) =
       .eq('store_id', storeId)
       .gte('created_at', firstDayOfMonth.toISOString());
 
+    // 获取待跟进客户数（跟进计划中红色和黄色）
+    const { count: pendingFollowUpCount } = await client
+      .from('follow_up_plans')
+      .select('*', { count: 'exact', head: true })
+      .eq('store_id', storeId)
+      .in('urgency_level', ['red', 'yellow']);
+
     res.json({
       success: true,
       data: {
-        totalCustomers: totalCustomers || 0,
-        newCustomersThisMonth: newCustomersThisMonth || 0,
-        activeCustomers,
-        sleepingCustomers,
+        customerCount: totalCustomers || 0,
+        newCustomerCount: newCustomersThisMonth || 0,
+        activeCustomerCount: activeCustomers || 0,
+        sleepingCustomerCount: sleepingCustomers || 0,
+        followUpCount: followUpsThisMonth || 0,
+        pendingFollowUpCount: pendingFollowUpCount || 0,
         totalEmployees: totalEmployees || 0,
-        followUpsThisMonth: followUpsThisMonth || 0,
       },
     });
   } catch (error: any) {
