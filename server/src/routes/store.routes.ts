@@ -49,6 +49,61 @@ router.get('/all', authenticate, requireSuperAdmin, async (req, res) => {
 });
 
 /**
+ * 删除门店（超级管理员专用）
+ * DELETE /api/v1/stores/:id
+ * 
+ * 注意：这是软删除，会将门店状态改为 'deleted'
+ */
+router.delete('/:id', authenticate, requireSuperAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const storeId = parseInt(id);
+    
+    const client = getSupabaseClient();
+
+    // 检查门店是否存在
+    const { data: store, error: fetchError } = await client
+      .from('stores')
+      .select('*')
+      .eq('id', storeId)
+      .single();
+
+    if (fetchError || !store) {
+      return res.status(404).json({ 
+        success: false,
+        error: '门店不存在' 
+      });
+    }
+
+    // 软删除门店
+    const { error: updateError } = await client
+      .from('stores')
+      .update({ status: 'deleted' })
+      .eq('id', storeId);
+
+    if (updateError) throw updateError;
+
+    // 同时禁用该门店的所有用户
+    const { error: usersError } = await client
+      .from('users')
+      .update({ status: 'inactive' })
+      .eq('store_id', storeId);
+
+    if (usersError) {
+      console.error('Failed to deactivate users:', usersError);
+    }
+
+    res.json({
+      success: true,
+      message: `门店「${store.name}」已删除`,
+    });
+  } catch (error: any) {
+    console.error('Error deleting store:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
  * 获取门店信息
  * GET /api/v1/stores/me
  */
